@@ -22,8 +22,6 @@ internal data class MiniMaterialStyle(
     val softGlassBlur: Int = 36,
     val softLuminance: Float = 0.14f,
 ) {
-    fun needsGlassEdgeMask(): Boolean = mode == SYSTEM || mode == SOFT_GLASS
-
     /** An OEM card change only invalidates the system mode. Hidden-mode parameters do not redraw. */
     fun key(oemGeneration: Int): String = when (mode) {
         PURE -> "pure:$pureColor"
@@ -116,13 +114,14 @@ internal object MiniMaterialRenderer {
         }
     }
 
-    fun apply(view: ImageView, style: MiniMaterialStyle, classLoader: ClassLoader) {
+    /** True only when the native Glass calls succeeded on this view. */
+    fun apply(view: ImageView, style: MiniMaterialStyle, classLoader: ClassLoader): Boolean {
         (view.parent as? View)?.let(::clearContainer)
         view.background = null
         view.setImageDrawable(null)
         if (style.mode == MiniMaterialStyle.PURE) {
             fill(view, style.pureColor)
-            return
+            return false
         }
         try {
             fill(view, Color.argb(1, 255, 255, 255))
@@ -134,12 +133,14 @@ internal object MiniMaterialRenderer {
                     glass(view, classLoader, style.softGlassBlur, style.softLuminance)
                 }
             }
+            return style.mode == MiniMaterialStyle.SOFT_GLASS
         } catch (error: Throwable) {
             clearContainer(view)
             fill(view, if (style.mode == MiniMaterialStyle.ADVANCED)
                 tint(style.advancedColor, style.advancedOpacity)
                 else tint(style.softColor, style.softOpacity))
             if (loggedFailures.add(style.mode)) Xp.log("MCMini: custom material ${style.mode} unavailable: $error")
+            return false
         }
     }
 

@@ -1429,8 +1429,21 @@ object MiniPlayerRuntime {
             recipe.forEach { call ->
                 val args = call.args.copyOf()
                 args[call.viewAt] = view
+                // The recorded media card is much larger than a pill or shortcut. Its SDF
+                // limits belong to that card, not to the view receiving the replay.
+                if (call.method.name == "setMiGlassSdfMaxSizeCompat" &&
+                    view.width > 1 && view.height > 1) {
+                    val dimensions = call.method.parameterTypes.indices.filter { index ->
+                        index != call.viewAt && call.method.parameterTypes[index] == Float::class.javaPrimitiveType
+                    }
+                    if (dimensions.size >= 2) {
+                        args[dimensions[0]] = view.width.toFloat()
+                        args[dimensions[1]] = view.height.toFloat()
+                    }
+                }
                 call.method.invoke(null, *args)
             }
+            restoreMaterialOutline(view, recipe.any { it.method.name == "setMiGlassCompat" })
             dressedViews.add(view)
             // Dressed in the AOD - a small island coming up there: dimmed as the rest are.
             aodDimArgs?.let { dimView(view, it) }
@@ -1442,12 +1455,21 @@ object MiniPlayerRuntime {
             }
             view.background = null
             view.setImageDrawable(GradientDrawable().apply { setColor(0x9E1F2324.toInt()) })
+            restoreMaterialOutline(view, false)
         }
     }
 
     internal fun material(view: ImageView, classLoader: ClassLoader, style: MiniMaterialStyle) {
         if (style.mode == MiniMaterialStyle.SYSTEM) material(view, classLoader)
-        else MiniMaterialRenderer.apply(view, style, classLoader)
+        else restoreMaterialOutline(view, MiniMaterialRenderer.apply(view, style, classLoader))
+    }
+
+    private fun restoreMaterialOutline(view: ImageView, glass: Boolean) {
+        when (val parent = view.parent) {
+            is MiniPlayerView -> parent.restoreMaterialOutline(view)
+            is ShortcutDisc -> parent.restoreMaterialOutline(view)
+        }
+        MiniGlassOutline.dressed(view, glass)
     }
 }
 
@@ -2010,7 +2032,7 @@ private class MiniPlayerController(
         }
         updateMaterialKeys()
         val style = islandMaterial
-        view.dress(islandMaterialKey, style.needsGlassEdgeMask()) {
+        view.dress(islandMaterialKey) {
             MiniPlayerRuntime.material(it, loader, style)
         }
         if (swap == null && !islandDragging && !smallGrowing && landingBox == null) view.setShape(d, d)
@@ -2792,7 +2814,7 @@ private class MiniPlayerController(
         }
         updateMaterialKeys()
         val style = islandMaterial
-        disc.dress(islandMaterialKey, style.needsGlassEdgeMask()) {
+        disc.dress(islandMaterialKey) {
             MiniPlayerRuntime.material(it, loader, style)
         }
         val picture: Any? = if (key == MUSIC_ISLAND) (thumbShown ?: cachedCover)
@@ -6532,7 +6554,7 @@ private class MiniPlayerController(
             }
             updateMaterialKeys()
             val style = shortcutMaterial
-            disc.dress(shortcutMaterialKey, style.needsGlassEdgeMask()) {
+            disc.dress(shortcutMaterialKey) {
                 MiniPlayerRuntime.material(it, loader, style)
             }
             if (disc.visibility != View.VISIBLE) disc.visibility = View.VISIBLE
@@ -7448,7 +7470,6 @@ private class MiniPlayerController(
             stateOf(current)?.state == PlaybackState.STATE_PLAYING,
             config,
             islandMaterialKey,
-            islandMaterial.needsGlassEdgeMask(),
             { target -> MiniPlayerRuntime.material(target, loader, islandMaterial) },
             ::togglePlayback,
             { skip(next = false) },
@@ -7491,7 +7512,6 @@ private class MiniPlayerController(
             false,
             config,
             islandMaterialKey,
-            islandMaterial.needsGlassEdgeMask(),
             { target -> MiniPlayerRuntime.material(target, loader, islandMaterial) },
             {},
             {},
