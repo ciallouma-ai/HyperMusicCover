@@ -22,6 +22,8 @@ internal data class MiniMaterialStyle(
     val softGlassBlur: Int = 36,
     val softLuminance: Float = 0.14f,
 ) {
+    fun needsGlassEdgeMask(): Boolean = mode == SYSTEM || mode == SOFT_GLASS
+
     /** An OEM card change only invalidates the system mode. Hidden-mode parameters do not redraw. */
     fun key(oemGeneration: Int): String = when (mode) {
         PURE -> "pure:$pureColor"

@@ -2,6 +2,7 @@ package com.os4.musiccover
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Canvas
 import android.graphics.Outline
 import android.graphics.drawable.Drawable
 import android.view.Choreographer
@@ -26,7 +27,10 @@ import kotlin.math.sqrt
  * recorded calls. It never takes a touch - the button above it keeps its own.
  */
 internal class ShortcutDisc(context: Context) : FrameLayout(context) {
+    private val materialFrame = FrameLayout(context)
     private var element = ImageView(context)
+    private val glassEdgeMask = GlassEdgeMask()
+    private var smoothGlassEdge = false
     private var dressWith: ((ImageView) -> Unit)? = null
     private var dressedAs: String? = null
     private var shapeW = 0
@@ -58,22 +62,27 @@ internal class ShortcutDisc(context: Context) : FrameLayout(context) {
         outlineAmbientShadowColor = Color.TRANSPARENT
         outlineSpotShadowColor = Color.TRANSPARENT
         element.scaleType = ImageView.ScaleType.FIT_XY
-        addView(element, LayoutParams(0, 0))
+        materialFrame.addView(element, LayoutParams(0, 0))
+        addView(materialFrame, LayoutParams(-1, -1))
         isClickable = false
         isFocusable = false
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
     }
 
     /** The card's material, applied again only when the card has been dressed anew. */
-    fun dress(generation: String, apply: (ImageView) -> Unit) {
+    fun dress(generation: String, smoothGlassEdge: Boolean, apply: (ImageView) -> Unit) {
         dressWith = apply
+        if (this.smoothGlassEdge != smoothGlassEdge) {
+            this.smoothGlassEdge = smoothGlassEdge
+            invalidate()
+        }
         if (generation == dressedAs) return
         // Xiaomi material APIs retain native state on the view. A fresh element keeps a former
         // glass or blur recipe from leaking into a newly selected solid/system recipe.
         if (dressedAs != null) {
-            removeView(element)
+            materialFrame.removeView(element)
             element = ImageView(context).apply { scaleType = ImageView.ScaleType.FIT_XY }
-            addView(element, 0, LayoutParams(0, 0))
+            materialFrame.addView(element, 0, LayoutParams(0, 0))
             placeElement()
         }
         dressedAs = generation
@@ -209,8 +218,21 @@ internal class ShortcutDisc(context: Context) : FrameLayout(context) {
         live?.let { if (kotlin.math.abs(it.alpha - alpha) > 0.002f) it.alpha = alpha }
     }
 
-    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) =
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        materialFrame.layout(0, 0, width, height)
         placeElement()
+    }
+
+    override fun draw(canvas: Canvas) {
+        if (!smoothGlassEdge) {
+            super.draw(canvas)
+            return
+        }
+        val l = (width - shapeW) / 2f + shapeDx
+        val t = (height - shapeH) / 2f
+        glassEdgeMask.draw(canvas, width, height, l, t, l + shapeW, t + shapeH,
+            min(shapeW, shapeH) / 2f) { super.draw(canvas) }
+    }
 
     private fun applyDress() {
         dressWith?.invoke(element)

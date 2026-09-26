@@ -2010,7 +2010,7 @@ private class MiniPlayerController(
         }
         updateMaterialKeys()
         val style = islandMaterial
-        view.dress(islandMaterialKey) {
+        view.dress(islandMaterialKey, style.needsGlassEdgeMask()) {
             MiniPlayerRuntime.material(it, loader, style)
         }
         if (swap == null && !islandDragging && !smallGrowing && landingBox == null) view.setShape(d, d)
@@ -2792,7 +2792,7 @@ private class MiniPlayerController(
         }
         updateMaterialKeys()
         val style = islandMaterial
-        disc.dress(islandMaterialKey) {
+        disc.dress(islandMaterialKey, style.needsGlassEdgeMask()) {
             MiniPlayerRuntime.material(it, loader, style)
         }
         val picture: Any? = if (key == MUSIC_ISLAND) (thumbShown ?: cachedCover)
@@ -6532,7 +6532,7 @@ private class MiniPlayerController(
             }
             updateMaterialKeys()
             val style = shortcutMaterial
-            disc.dress(shortcutMaterialKey) {
+            disc.dress(shortcutMaterialKey, style.needsGlassEdgeMask()) {
                 MiniPlayerRuntime.material(it, loader, style)
             }
             if (disc.visibility != View.VISIBLE) disc.visibility = View.VISIBLE
@@ -7448,6 +7448,7 @@ private class MiniPlayerController(
             stateOf(current)?.state == PlaybackState.STATE_PLAYING,
             config,
             islandMaterialKey,
+            islandMaterial.needsGlassEdgeMask(),
             { target -> MiniPlayerRuntime.material(target, loader, islandMaterial) },
             ::togglePlayback,
             { skip(next = false) },
@@ -7490,6 +7491,7 @@ private class MiniPlayerController(
             false,
             config,
             islandMaterialKey,
+            islandMaterial.needsGlassEdgeMask(),
             { target -> MiniPlayerRuntime.material(target, loader, islandMaterial) },
             {},
             {},

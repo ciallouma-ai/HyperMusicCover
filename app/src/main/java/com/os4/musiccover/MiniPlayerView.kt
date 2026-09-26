@@ -32,7 +32,10 @@ import org.json.JSONObject
 
 /** HyperChanger's compact card, hosted in SystemUI's shortcut area. */
 internal class MiniPlayerView(context: Context) : FrameLayout(context) {
+    private val materialFrame = FrameLayout(context)
     private var materialLayer = ImageView(context)
+    private val glassEdgeMask = GlassEdgeMask()
+    private var smoothGlassEdge = false
     private val artwork = ImageView(context)
 
     /**
@@ -106,7 +109,8 @@ internal class MiniPlayerView(context: Context) : FrameLayout(context) {
         // rim where Xiaomi's glass shader meets the same rounded outline a second time.
         materialLayer.clipToOutline = false
         materialLayer.outlineProvider = outlineProvider
-        addView(materialLayer, LayoutParams(-1, -1))
+        materialFrame.addView(materialLayer, LayoutParams(-1, -1))
+        addView(materialFrame, LayoutParams(-1, -1))
         artwork.scaleType = ImageView.ScaleType.CENTER_CROP
         slot.clipToOutline = true
         slot.background = rounded(Color.rgb(55, 55, 55), dp(12).toFloat())
@@ -173,6 +177,7 @@ internal class MiniPlayerView(context: Context) : FrameLayout(context) {
         playing: Boolean,
         config: JSONObject,
         material: String,
+        smoothGlassEdge: Boolean,
         applyMaterial: (ImageView) -> Unit,
         togglePlayback: () -> Unit,
         skipPrevious: () -> Unit,
@@ -180,18 +185,22 @@ internal class MiniPlayerView(context: Context) : FrameLayout(context) {
         showNative: () -> Unit,
         openCover: () -> Unit,
     ) {
+        if (this.smoothGlassEdge != smoothGlassEdge) {
+            this.smoothGlassEdge = smoothGlassEdge
+            invalidate()
+        }
         val appearance = "$config|$material"
         if (lastAppearance != appearance) {
             lastAppearance = appearance
             if (lastMaterial != null && lastMaterial != material) {
                 // A fresh view also drops the previous vendor blur/material state.
-                removeView(materialLayer)
+                materialFrame.removeView(materialLayer)
                 materialLayer = ImageView(context).apply {
                     scaleType = ImageView.ScaleType.FIT_XY
                     clipToOutline = false
                     outlineProvider = this@MiniPlayerView.outlineProvider
                 }
-                addView(materialLayer, 0, LayoutParams(-1, -1))
+                materialFrame.addView(materialLayer, 0, LayoutParams(-1, -1))
             }
             lastMaterial = material
             materialAgain = {
@@ -557,6 +566,15 @@ internal class MiniPlayerView(context: Context) : FrameLayout(context) {
     /** Re-applies the material now; for a first show that came before the pill had a size. */
     private var materialAgain: (() -> Unit)? = null
 
+    override fun draw(canvas: Canvas) {
+        if (!smoothGlassEdge) {
+            super.draw(canvas)
+            return
+        }
+        glassEdgeMask.draw(canvas, width, height, 0f, 0f, width.toFloat(), height.toFloat(),
+            if (morphing) morphRadius else height / 2f) { super.draw(canvas) }
+    }
+
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         if (!morphing && w > 1 && h > 1 && (oldw <= 1 || oldh <= 1)) materialAgain?.invoke()
@@ -698,14 +716,18 @@ internal class MiniPlayerView(context: Context) : FrameLayout(context) {
         val r = radius.coerceIn(0f, min(w, h) / 2f)
         // A frame that only moves keeps its bounds and its outline: both were set again every
         // frame, the outline twice over - a resize rebuilds it by itself (View.sizeChange).
-        val resized = w != width || h != height || materialLayer.width != w || materialLayer.height != h
+        val resized = w != width || h != height || materialFrame.width != w ||
+            materialFrame.height != h || materialLayer.width != w || materialLayer.height != h
         val rounded = r != morphRadius
         morphW = w
         morphH = h
         morphRadius = r
         if (resized) {
             traced("MC f.bounds") { setLeftTopRightBottom(left, top, left + morphW, top + morphH) }
-            traced("MC f.matBounds") { materialLayer.setLeftTopRightBottom(0, 0, morphW, morphH) }
+            traced("MC f.matBounds") {
+                materialFrame.setLeftTopRightBottom(0, 0, morphW, morphH)
+                materialLayer.setLeftTopRightBottom(0, 0, morphW, morphH)
+            }
         }
         translationX = box.x - xy[0] - left
         translationY = box.y - xy[1] - top
@@ -768,6 +790,7 @@ internal class MiniPlayerView(context: Context) : FrameLayout(context) {
         // material follows the frame.
         super.onLayout(changed, left, top, left + restWidth(), top + restHeight())
         setLeftTopRightBottom(left, top, left + morphW, top + morphH)
+        materialFrame.layout(0, 0, morphW, morphH)
         materialLayer.layout(0, 0, morphW, morphH)
     }
 
