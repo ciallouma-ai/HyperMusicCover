@@ -1,12 +1,19 @@
 # HyperMusicCover 定制版更新日志
 
+## 当前已知问题（0.5.1-custom.4 目标设备复测）
+
+- **系统自动／柔光玻璃的锁屏组件圆角锯齿仍未解决。** `custom.4` 的原生轮廓与 SDF 调整已进入源码和 APK，但目标设备复测仍出现锯齿；不能将本版视为该问题的修复版。状态变化及前几版尝试见 `docs/glass-edge-handoff.md`。
+- `custom.2` 的自定义息屏组件残留修复已由目标设备复测确认有效。
+
 ## 0.5.1-custom.4（versionCode 505）
 
 - 修正玻璃材质的原生轮廓状态：媒体卡材质回放后恢复迷你播放器和快捷圆盘自己的轮廓，重新启用 HyperOS 玻璃轮廓标志，并按各材质视图的实际像素尺寸更新 SDF 上限。尺寸形变时同步更新。
 - 撤回 `custom.3` 的 Canvas 遮罩和额外模糊容器。它们未触及原生玻璃的轮廓与 SDF 状态，在目标设备上未解决锯齿。
 - 自定义息屏组件隐藏逻辑延续 `custom.2`。
 
-APK 仍使用 Android Debug 证书签名，包名保持 `com.github.zyl6932.HyperMusicCover`。目标 HyperOS 设备上的边缘效果仍需目视验收。
+APK 仍使用 Android Debug 证书签名，包名保持 `com.github.zyl6932.HyperMusicCover`。
+
+后续确认：目标设备复测显示玻璃边缘锯齿依旧存在；本版的轮廓与 SDF 调整未修复该问题。
 
 ## 0.5.1-custom.3（versionCode 504）
 
