@@ -1,0 +1,11 @@
+# 卡片样式动态流光背景
+
+此功能仅在音乐锁屏的卡片样式开启。默认保持原静态模糊背景；切换到完整封面样式会保留流光设置，但不显示动态层。
+
+`CoverCardLayer` 在现有封面准备线程生成 128×128 的缩图，并在静态壁纸开始换曲时把缩图交给 `CoverFlowRuntime`。后者将 Kawarp-AGSL 的取色、着色和 Kawase 模糊放在后台线程，屏幕可见时以 Android `RuntimeShader` 绘制流动颜色。首次着色尚未完成、AGSL 不可用或绘制失败时，透明动态层会露出原静态壁纸。动态层位于卡片封面及锁屏根层之下；换曲交叉淡化时长与封面一致，为 180 毫秒。
+
+设置包括三档预设及强度、速度、模糊次数。预设选择重置三项参数，后续手动调节会保存；模糊次数在拖动结束时才发给 SystemUI 重新处理当前封面。暂停播放后流速逐渐降为零。离开锁屏、进入息屏或歌词模糊场景时停止逐帧绘制。设置由现有 SystemUI 广播、状态文件和备份链路传递；旧配置缺少流光字段时默认为关闭。
+
+渲染引擎源码来自 [Kawarp-AGSL](https://github.com/meowarex/kawarp-agsl)，许可证为 LGPL-3.0；其衍生的原版 [Kawarp](https://github.com/better-lyrics/kawarp) 设计与着色器代码为 MIT 许可。完整声明见 [`third_party/kawarp-agsl`](../third_party/kawarp-agsl/) 与根目录 `NOTICE`。引擎通过 Android API 33 提供的 `RuntimeShader` 工作；项目最低系统版本为 API 35。
+
+此层实现的是卡片后方可见的动态颜色。HyperOS 原生玻璃组件可能仍从底层静态壁纸采样模糊；普通构建和模拟器无法证实目标设备上的最终合成效果。

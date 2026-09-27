@@ -1,5 +1,16 @@
 # HyperMusicCover 定制版更新日志
 
+## 0.5.1-custom.5-flow（versionCode 506）
+
+- 卡片样式音乐锁屏新增专辑封面取色动态流光背景；默认仍为静态模糊，完整封面样式不启用流光。
+- 增加 Apple Music 风格、柔和氛围和鲜明律动三档预设，以及强度、速度、模糊次数调节。换曲时流光与封面同步交叉淡化，暂停时流动逐渐停下；设置页预览同步显示。
+- 流光设置随 SystemUI 状态保存、广播查询和设置备份传递；旧配置与旧备份保持静态模糊。着色器未准备好或渲染失败时使用现有静态壁纸。
+- 引入 Kawarp-AGSL 的 AGSL 引擎源码及其 LGPL-3.0、原版 Kawarp MIT 声明；没有新增 JitPack 依赖。
+
+验证：`CoverFlowConfigTest` 4 项通过，Release 构建通过；APK 元数据为 `0.5.1-custom.5-flow`／`506`，`apksigner verify` 通过（v2 签名）。目标 HyperOS 设备视觉效果尚未实测；原生玻璃组件可能仍从底层静态壁纸取模糊样本。
+
+APK 使用本地 Android Debug 证书签名，包名保持 `com.github.zyl6932.HyperMusicCover`。
+
 ## 当前已知问题（0.5.1-custom.4 目标设备复测）
 
 - **系统自动／柔光玻璃的锁屏组件圆角锯齿仍未解决。** `custom.4` 的原生轮廓与 SDF 调整已进入源码和 APK，但目标设备复测仍出现锯齿；不能将本版视为该问题的修复版。状态变化及前几版尝试见 `docs/glass-edge-handoff.md`。

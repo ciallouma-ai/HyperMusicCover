@@ -1777,6 +1777,9 @@ public class Main extends XposedModule {
                     + "\nminicfg=" + android.util.Base64.encodeToString(
                             MiniPlayerRuntime.configJson(sAppCtx).getBytes(java.nio.charset.StandardCharsets.UTF_8),
                             android.util.Base64.NO_WRAP)
+                    + "\ncoverflowcfg=" + android.util.Base64.encodeToString(
+                            CoverFlowRuntime.configJson().getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                            android.util.Base64.NO_WRAP)
                     // Not a setting - a measurement. Kept so the app's preview is to scale from
                     // the first frame after a SystemUI restart, instead of only once the phone
                     // has been locked again.
@@ -1890,6 +1893,9 @@ public class Main extends XposedModule {
                         }
                         else if ("fpavoid".equals(k)) sFpAvoid = Integer.parseInt(v);
                         else if ("minicfg".equals(k)) MiniPlayerRuntime.applyConfig(sAppCtx,
+                                new String(android.util.Base64.decode(v, android.util.Base64.DEFAULT),
+                                        java.nio.charset.StandardCharsets.UTF_8));
+                        else if ("coverflowcfg".equals(k)) CoverFlowRuntime.applyConfig(
                                 new String(android.util.Base64.decode(v, android.util.Base64.DEFAULT),
                                         java.nio.charset.StandardCharsets.UTF_8));
                         // The whole shade settings page, in one prefix - the keys and their
@@ -2545,6 +2551,9 @@ public class Main extends XposedModule {
                     } else if ("minicfg".equals(op)) {
                         MiniPlayerRuntime.applyConfig(c, i.getStringExtra("json"));
                         saveState();
+                    } else if ("coverflowcfg".equals(op)) {
+                        CoverFlowRuntime.applyConfig(i.getStringExtra("json"));
+                        saveState();
                     } else if ("query".equals(op)) {
                         // Answered through the ordered broadcast's result extras: the app is a
                         // separate process and this is the only channel it already has. A reply
@@ -2553,6 +2562,7 @@ public class Main extends XposedModule {
                         out.putBoolean("alive", true);
                         out.putBoolean("cover", sCoverMode);
                         out.putString("minicfg", MiniPlayerRuntime.configJson(c));
+                        out.putString("coverflowcfg", CoverFlowRuntime.configJson());
                         float[] shortcuts = MiniPlayerRuntime.shortcutGeometry();
                         if (shortcuts != null) out.putFloatArray("minishortcuts", shortcuts);
                         out.putBoolean("auto", sAuto);
