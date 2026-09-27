@@ -855,6 +855,7 @@ public class Main extends XposedModule {
         HyperTweaks.systemUi(cl);
         // The mini player hangs off the shortcut row, not the clock container.
         MiniPlayerRuntime.install(cl);
+        CoverFlowCards.install(cl);
 
         try {
             sContainerCls = Xp.findClass(CLS_CONTAINER, cl);
@@ -6418,6 +6419,11 @@ public class Main extends XposedModule {
         return (sCoverMode || ClockCollapse.phase() == ClockCollapse.Phase.EXIT)
                 && keyguardShowing() && c != null && c.isShown()
                 && (sScreenOn || coverCardInAod() || coverCardFallingAsleep());
+    }
+
+    /** Card backdrops stop at AOD, even while the album-art wash fades with the clock. */
+    static boolean flowCardsEligible() {
+        return sScreenOn && coverCardVisible();
     }
 
     /**

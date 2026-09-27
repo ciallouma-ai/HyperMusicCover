@@ -11,6 +11,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import dev.kawarp.KawarpEngine;
+import dev.kawarp.KawarpFrame;
 
 /** Album-colour backdrop. The static wallpaper stays visible until its first hardware frame. */
 final class CoverFlowRuntime extends View {
@@ -28,6 +29,7 @@ final class CoverFlowRuntime extends View {
         }
     };
     private KawarpEngine engine;
+    private KawarpFrame frameState;
     private long waitingSince;
     private long lastFrame;
     private float readiness;
@@ -138,8 +140,10 @@ final class CoverFlowRuntime extends View {
             v.frameScheduled = false;
             v.setAlpha(0f);
             v.setVisibility(GONE);
+            v.frameState = null;
             v.restoreVideoFallback();
         }
+        CoverFlowCards.clear();
     }
 
     private boolean sceneVisible() {
@@ -220,6 +224,7 @@ final class CoverFlowRuntime extends View {
             readiness = Math.min(1f, readiness + dt / (float) READY_FADE_MS);
         float progress = scene ? Main.cardProgress() : 0f;
         float opacity = CoverFlowScene.opacity(progress, CoverCardLayer.flowLit(), readiness);
+        frameState = ready ? engine.frame(now) : null;
         if (getVisibility() != VISIBLE && (scene || opacity > 0f)) setVisibility(VISIBLE);
         if (getAlpha() != opacity) setAlpha(opacity);
         if (getVisibility() == VISIBLE && !scene && opacity == 0f) setVisibility(GONE);
@@ -230,6 +235,9 @@ final class CoverFlowRuntime extends View {
             Xp.log("[MCFlow] lyric shade " + (lyrics ? "enter" : "exit"));
         }
         updateVideoFallback(opacity);
+        CoverFlowCards.update(this, frameState,
+                CoverFlowScene.cardOpacity(opacity, scene && Main.flowCardsEligible()),
+                0.4f * lyricShow);
         if (opacity > 0f && (engine.isAnimating() || lyrics || processing || readiness < 1f))
             postInvalidateOnAnimation();
         if (scene && (!ready || processing || readiness < 1f || opacity > 0f
@@ -265,6 +273,7 @@ final class CoverFlowRuntime extends View {
         removeCallbacks(frame);
         frameScheduled = false;
         restoreVideoFallback();
+        CoverFlowCards.clear();
         super.onDetachedFromWindow();
     }
 
@@ -272,10 +281,10 @@ final class CoverFlowRuntime extends View {
         super.onDraw(canvas);
         // OEM screenshot and blur probes use a software Canvas. RuntimeShader cannot draw there;
         // the real hardware layer must remain healthy for the next lock-screen frame.
-        if (!canvas.isHardwareAccelerated() || engine == null || !engine.isReady()
+        if (!canvas.isHardwareAccelerated() || engine == null || frameState == null
                 || getAlpha() <= 0f || failed) return;
         try {
-            if (!engine.draw(canvas, getWidth(), getHeight())) return;
+            engine.drawFrame(canvas, frameState, getWidth(), getHeight());
             int shade = CoverFlowScene.lyricShade(LockLyrics.flowShow());
             if (shade > 0) {
                 shadePaint.setColor(0xff000000);

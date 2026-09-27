@@ -12,6 +12,10 @@ final class CoverFlowScene {
         return clamp(cardProgress) * clamp(lit) * clamp(readiness);
     }
 
+    static float cardOpacity(float flowOpacity, boolean eligible) {
+        return eligible ? 0.65f * clamp(flowOpacity) : 0f;
+    }
+
     static int lyricShade(float lyricShow) {
         return Math.round(255f * 0.4f * clamp(lyricShow));
     }

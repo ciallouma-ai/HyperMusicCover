@@ -1,5 +1,13 @@
 # HyperMusicCover 定制版更新日志
 
+## 0.5.1-custom.7-flow-cards（versionCode 508）
+
+- 卡片样式的动态流光现在同步绘制在展开后的原生媒体卡和锁屏通知卡背景上：共享同一封面处理结果、动画时间与换曲过渡，按卡片当前形变位置取流光颜色，不逐帧截图。
+- 卡片流光以最高 65% 不透明度叠在原生材质上，保留玻璃染色和轮廓；歌词压暗、进入/退出进度与底层流光同步。
+- 关闭流光、进入息屏、解锁、卡片脱离或着色器不可用时移除叠层并恢复原生背景。无法识别的通知背景跳过并限量记录日志。
+
+验证：`CoverFlowSceneTest` 与 `FlowCardGeometryTest` 通过，Release 构建通过；APK 元数据为 `0.5.1-custom.7-flow-cards`／`508`，`apksigner verify` 通过（v2 签名）。APK 使用本地 Android Debug 证书；目标 HyperOS 的最终卡片合成效果仍需实机目视确认。
+
 ## 0.5.1-custom.6-flow-fixes（versionCode 507）
 
 - 修复音乐锁屏流光背景进入、退出时的突现：透明度跟随卡片进度，首次着色延迟完成时渐显；息屏继续跟随卡片明暗过渡。

@@ -4,6 +4,9 @@ Kawarp-AGSL is licensed under the LGPL-3.0 (see `LICENSE`). It incorporates work
 following project, whose original licence and copyright are preserved below as that licence
 requires.
 
+The HyperMusicCover copy adds a shared immutable animation frame and per-target AGSL renderers
+so lock-screen card backgrounds can sample the same moving colours as the full-screen layer.
+
 ---
 
 ## kawarp (@kawarp/core)

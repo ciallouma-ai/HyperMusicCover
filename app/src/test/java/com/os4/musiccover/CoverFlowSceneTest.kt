@@ -32,4 +32,10 @@ class CoverFlowSceneTest {
         assertTrue(position < 9)
         assertEquals(9, CoverFlowScene.layerIndex(9, -1, -1))
     }
+
+    @Test fun cardBackdropUsesSixtyFivePercentAndStopsOutsideAwakeScene() {
+        assertEquals(0f, CoverFlowScene.cardOpacity(1f, false), 0f)
+        assertEquals(0.325f, CoverFlowScene.cardOpacity(0.5f, true), 0.0001f)
+        assertEquals(0.65f, CoverFlowScene.cardOpacity(2f, true), 0.0001f)
+    }
 }

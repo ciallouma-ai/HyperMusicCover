@@ -22,8 +22,6 @@ package dev.kawarp;
 import android.graphics.Bitmap;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.RuntimeShader;
 import android.graphics.Shader;
 import android.os.Build;
 import android.os.SystemClock;
@@ -64,7 +62,7 @@ public final class KawarpEngine implements Runnable {
     private static final ExecutorService LOADER = Executors.newSingleThreadExecutor();
 
     /** kawarp's BLEND + DOMAIN_WARP + OUTPUT programs, folded into one pass. */
-    private static final String AGSL =
+    static final String AGSL =
         "uniform shader texA;\n" +
         "uniform shader texB;\n" +
         "uniform float2 uRes;\n" +
@@ -76,6 +74,10 @@ public final class KawarpEngine implements Runnable {
         "uniform float uScale;\n" +
         "uniform float uBright;\n" +
         "uniform float uContrast;\n" +
+        "uniform float uShade;\n" +
+        "uniform float2 uMapX;\n" +
+        "uniform float2 uMapY;\n" +
+        "uniform float2 uOrigin;\n" +
         "\n" +
         "float3 m289_3(float3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }\n" +
         "float2 m289_2(float2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }\n" +
@@ -112,7 +114,8 @@ public final class KawarpEngine implements Runnable {
         "}\n" +
         "\n" +
         "half4 main(float2 fragCoord) {\n" +
-        "  float2 uv0 = fragCoord / uRes;\n" +
+        "  float2 flowCoord = float2(dot(uMapX, fragCoord), dot(uMapY, fragCoord)) + uOrigin;\n" +
+        "  float2 uv0 = flowCoord / uRes;\n" +
         "  float2 uv = clamp((uv0 - 0.5) / uScale + 0.5, 0.0, 1.0);\n" +
         "\n" +
         "  float t = uTime * 0.05;\n" +
@@ -137,6 +140,7 @@ public final class KawarpEngine implements Runnable {
         "\n" +
         "  col = (col - 0.5) * uContrast + 0.5;\n" +
         "  col *= uBright;\n" +
+        "  col *= 1.0 - uShade;\n" +
         "  return half4(half3(clamp(col, 0.0, 1.0)), 1.0);\n" +
         "}\n";
 
@@ -158,8 +162,7 @@ public final class KawarpEngine implements Runnable {
     private volatile boolean playbackReactive = false;
     private volatile boolean playing = true;
 
-    private final RuntimeShader shader;
-    private final Paint paint = new Paint();
+    private final KawarpFrameRenderer renderer;
 
     // Crossfade pair. BitmapShader retains its bitmap, so the blurred covers live through these.
     private volatile BitmapShader prevShader, nextShader;
@@ -188,7 +191,7 @@ public final class KawarpEngine implements Runnable {
      */
     public KawarpEngine() {
         if (!isSupported()) throw new IllegalStateException("KawarpEngine needs API 33+ (AGSL)");
-        shader = new RuntimeShader(AGSL);
+        renderer = new KawarpFrameRenderer();
     }
 
     // --- settings -------------------------------------------------------------------------
@@ -370,12 +373,22 @@ public final class KawarpEngine implements Runnable {
      * Returns false (drawing nothing) until the first cover is ready.
      */
     public boolean draw(Canvas canvas, float width, float height) {
-        BitmapShader next = nextShader;
-        if (next == null || width <= 0f || height <= 0f) return false;
+        if (!canvas.isHardwareAccelerated() || width <= 0f || height <= 0f) return false;
+        KawarpFrame frame = frame(SystemClock.uptimeMillis());
+        if (frame == null) return false;
+        renderer.draw(canvas, frame, width, height, 0f, 0f, width, height,
+                1f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f);
+        return true;
+    }
 
-        long now = SystemClock.uptimeMillis();
+    /** Advance the one animation clock, then share this immutable state with other renderers. */
+    public KawarpFrame frame(long now) {
+        BitmapShader next = nextShader;
+        if (next == null) return null;
+
         // Clamp so a stalled frame (or a paused redraw loop) does not jump the shader forwards.
-        float dt = lastFrameUptime == 0L ? 0f : Math.min((now - lastFrameUptime) / 1000f, 0.1f);
+        float dt = lastFrameUptime == 0L ? 0f : Math.max(0f,
+                Math.min((now - lastFrameUptime) / 1000f, 0.1f));
         lastFrameUptime = now;
         float target = (!playbackReactive || playing) ? 1f : 0f;
         float step = dt / RAMP_SECONDS;
@@ -388,20 +401,16 @@ public final class KawarpEngine implements Runnable {
         long elapsed = now - transitionStart;
         if (fade > 0 && elapsed < fade) blend = elapsed / (float) fade;
 
-        shader.setInputShader("texA", prevShader != null ? prevShader : next);
-        shader.setInputShader("texB", next);
-        shader.setFloatUniform("uRes", width, height);
-        shader.setFloatUniform("uTime", shaderTime);
-        shader.setFloatUniform("uBlend", blend);
-        shader.setFloatUniform("uWarp", warpIntensity);
-        shader.setFloatUniform("uSat", saturation);
-        shader.setFloatUniform("uDither", dithering);
-        shader.setFloatUniform("uScale", scale);
-        shader.setFloatUniform("uBright", brightness * darkenBrightness);
-        shader.setFloatUniform("uContrast", contrast);
-        paint.setShader(shader);
-        canvas.drawRect(0f, 0f, width, height, paint);
-        return true;
+        return new KawarpFrame(prevShader != null ? prevShader : next, next,
+                shaderTime, blend, warpIntensity, saturation, dithering, scale,
+                brightness * darkenBrightness, contrast);
+    }
+
+    /** Draw a previously advanced frame without changing its clock. */
+    public void drawFrame(Canvas canvas, KawarpFrame frame, float width, float height) {
+        if (frame == null || width <= 0f || height <= 0f) return;
+        renderer.draw(canvas, frame, width, height, 0f, 0f, width, height,
+                1f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f);
     }
 
     /** True while a crossfade or (with playback-reactive) a speed ramp is still moving. */
