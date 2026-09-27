@@ -376,8 +376,7 @@ public final class KawarpEngine implements Runnable {
         if (!canvas.isHardwareAccelerated() || width <= 0f || height <= 0f) return false;
         KawarpFrame frame = frame(SystemClock.uptimeMillis());
         if (frame == null) return false;
-        renderer.draw(canvas, frame, width, height, 0f, 0f, width, height,
-                1f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f);
+        renderer.drawRoot(canvas, frame, width, height);
         return true;
     }
 
@@ -409,8 +408,7 @@ public final class KawarpEngine implements Runnable {
     /** Draw a previously advanced frame without changing its clock. */
     public void drawFrame(Canvas canvas, KawarpFrame frame, float width, float height) {
         if (frame == null || width <= 0f || height <= 0f) return;
-        renderer.draw(canvas, frame, width, height, 0f, 0f, width, height,
-                1f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f);
+        renderer.drawRoot(canvas, frame, width, height);
     }
 
     /** True while a crossfade or (with playback-reactive) a speed ramp is still moving. */

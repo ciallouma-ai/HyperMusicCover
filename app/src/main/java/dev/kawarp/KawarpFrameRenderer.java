@@ -9,6 +9,12 @@ public final class KawarpFrameRenderer {
     private final RuntimeShader shader = new RuntimeShader(KawarpEngine.AGSL);
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
+    /** Full-screen flow uses identity coordinates and no shader darkening. */
+    public void drawRoot(Canvas canvas, KawarpFrame frame, float width, float height) {
+        draw(canvas, frame, width, height, 0f, 0f, width, height,
+                1f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f);
+    }
+
     public void draw(Canvas canvas, KawarpFrame frame, float flowWidth, float flowHeight,
                      float left, float top, float right, float bottom,
                      float mapXX, float mapXY, float mapYX, float mapYY,
