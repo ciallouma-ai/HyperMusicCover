@@ -6205,7 +6205,6 @@ public class Main extends XposedModule {
         CoverCardLayer.leaving();
         sCoverMode = false;
         LockIslands.INSTANCE.setCoverMode(false);
-        CoverCardLayer.refresh();
         // The cover is on its way out, so the reading that coloured the clock describes the
         // wallpaper coming back even less than it described the old one. Dropped at the start:
         // the clock is at its smallest now, so the colour going back to the OEM's is at its
@@ -6221,6 +6220,9 @@ public class Main extends XposedModule {
         // (CoverPush.dropVideoCover), not in front of it now.
         if (!(sVideoWallpaper && sCover != null)) setDepthHidden(false);
         ClockCollapse.exit(animate);
+        // The exit phase must be visible before the backdrop reads scene eligibility: the
+        // card is still fading out here, even though sCoverMode was cleared above.
+        CoverCardLayer.refresh();
         MiniPlayerRuntime.refresh();
         // No applyMediaCard() while the exit is flying: it would drop the card's guard, and the
         // guard is what draws every frame of the thumbnail coming back. onClockReleased() hands

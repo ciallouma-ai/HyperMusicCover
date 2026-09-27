@@ -1277,6 +1277,12 @@ object MiniPlayerRuntime {
     private fun live(): List<MiniPlayerController> =
         synchronized(controllers) { controllers.values.map { it.controller } }
 
+    /** Place the animated wallpaper before the native shortcut backgrounds as well as the keyguard. */
+    @JvmStatic fun flowLayerIndex(host: ViewGroup, keyguardIndex: Int): Int =
+        live().fold(keyguardIndex) { index, controller ->
+            controller.flowLayerIndex(host, index)
+        }
+
     /**
      * A tap from the mini player into the cover or lyrics: the pill becomes the card that the
      * scene keeps. False when the mini player is not what is showing, and the OEM card's own
@@ -7263,6 +7269,12 @@ private class MiniPlayerController(
             }
             v = parent
         }
+    }
+
+    fun flowLayerIndex(target: ViewGroup, keyguardIndex: Int): Int {
+        if (host !== target) return keyguardIndex
+        return CoverFlowScene.layerIndex(keyguardIndex,
+            host.indexOfChild(discs[0]), host.indexOfChild(discs[1]))
     }
 
     /** The torch's right edge or the camera's left edge, where the pill's touch area stops. */

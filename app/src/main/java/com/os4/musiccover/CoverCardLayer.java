@@ -148,7 +148,15 @@ final class CoverCardLayer extends View implements Choreographer.FrameCallback {
             host.addView(v.wash, host.indexOfChild(below), new ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
-        CoverFlowRuntime.attach(host, v.wash);
+        // Shortcut glass discs are siblings in the window root. Keep the flow below their
+        // background as well as below the keyguard's own icons and artwork.
+        View root = layer.getRootView();
+        if (root instanceof ViewGroup) {
+            View anchor = zoomed != null ? zoomed : layer;
+            while (anchor.getParent() instanceof View && anchor.getParent() != root)
+                anchor = (View) anchor.getParent();
+            CoverFlowRuntime.attach((ViewGroup) root, anchor);
+        }
         v.style = sStyle;
         v.playing = sPlayingState;
         v.watchGeometry(layer);
@@ -552,6 +560,12 @@ final class CoverCardLayer extends View implements Choreographer.FrameCallback {
         return v == null || v.current == null ? null : v.current.flowArt;
     }
 
+    /** The same 200ms sleep / 350ms wake brightness that the card uses under the AOD clock. */
+    static float flowLit() {
+        CoverCardLayer v = sView;
+        return v == null ? 1f : v.lit;
+    }
+
     private void start() {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             post(new Runnable() { @Override public void run() { start(); } });
@@ -846,6 +860,7 @@ final class CoverCardLayer extends View implements Choreographer.FrameCallback {
         else rise += (1f - rise) * Math.min(1f, dt * 3f / response);
         if (rise > 0.998f) rise = 1f;
         if (Math.abs(opacity - target) < 0.002f) opacity = target;
+        CoverFlowRuntime.refresh();
         float scaleTarget = playing ? CardSpring.PLAYING : CardSpring.PAUSED;
         if (phase == ClockCollapse.Phase.AOD) scale.snap(scaleTarget);
         // At the response the app's 缩放动画阻尼 sets, so the card keeps time with the clock,
