@@ -189,7 +189,7 @@ final class CoverFlowRuntime extends View {
         updateVideoFallback(opacity);
         CoverFlowCards.update(this, frameState,
                 CoverFlowScene.cardOpacity(opacity, scene && Main.flowCardsEligible()),
-                CoverFlowScene.lyricDim(lyricShow));
+                0.4f * lyricShow);
         if (opacity > 0f && frameState != null) postInvalidateOnAnimation();
         if (scene && (!ready || readiness < 1f || opacity > 0f)) scheduleFrame();
     }
@@ -244,7 +244,6 @@ final class CoverFlowRuntime extends View {
                 shadePaint.setAlpha(shade);
                 canvas.drawRect(0, 0, getWidth(), getHeight(), shadePaint);
             }
-            AppleMusicFlowEngine.drawDither(canvas, getWidth(), getHeight());
         } catch (Throwable t) {
             fail("draw failed", t);
         }

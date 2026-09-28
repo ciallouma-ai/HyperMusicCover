@@ -1,7 +1,6 @@
 package com.os4.musiccover;
 
 import android.graphics.Bitmap;
-import android.graphics.BitmapShader;
 import android.graphics.BlendMode;
 import android.graphics.Canvas;
 import android.graphics.ColorMatrixColorFilter;
@@ -12,19 +11,13 @@ import android.graphics.RecordingCanvas;
 import android.graphics.RenderEffect;
 import android.graphics.RenderNode;
 import android.graphics.RuntimeShader;
-import android.graphics.Shader;
-import java.util.Arrays;
 
 /** One hardware scene shared by the lock-screen wash and the OEM card overlays. */
 public final class AppleMusicFlowEngine {
     private static final int TRANSITION_MS = 180;
-    private static final int DITHER_TILE_SIZE = 256;
-    private static Paint ditherPaint;
-    private static boolean ditherUnavailable;
     private static final String TWIST =
             "uniform shader content;\n" +
             "uniform float2 center;\n" +
-            "uniform float2 size;\n" +
             "uniform float radius;\n" +
             "half4 main(float2 p) {\n" +
             "  float2 q = p - center;\n" +
@@ -35,17 +28,16 @@ public final class AppleMusicFlowEngine {
             "    q = float2(q.x * cos(a) - q.y * sin(a),\n" +
             "               q.x * sin(a) + q.y * cos(a));\n" +
             "  }\n" +
-            "  return content.eval(clamp(q + center, float2(0.5), size - float2(0.5)));\n" +
+            "  return content.eval(q + center);\n" +
             "}\n";
     private static final String SATURATE =
             "uniform shader content;\n" +
-            "uniform float saturation;\n" +
             "half4 main(float2 p) {\n" +
             "  half4 c = content.eval(p);\n" +
             "  if (c.a <= 0.0) return c;\n" +
             "  float3 rgb = float3(c.rgb) / float(c.a);\n" +
             "  float gray = dot(rgb, float3(0.2125, 0.7154, 0.0721));\n" +
-            "  rgb = mix(float3(gray), rgb, saturation);\n" +
+            "  rgb = mix(float3(gray), rgb, 2.75);\n" +
             "  return half4(half3(rgb * float(c.a)), c.a);\n" +
             "}\n";
 
@@ -121,7 +113,6 @@ public final class AppleMusicFlowEngine {
 
         RuntimeShader twist = new RuntimeShader(TWIST);
         twist.setFloatUniform("center", AppleFlowMath.WORK_WIDTH * 0.5f, workHeight * 0.5f);
-        twist.setFloatUniform("size", AppleFlowMath.WORK_WIDTH, workHeight);
         twist.setFloatUniform("radius", AppleFlowMath.TWIST_RADIUS
                 * AppleFlowMath.WORK_WIDTH / logicalWidth);
         RenderEffect chain = RenderEffect.createRuntimeShaderEffect(twist, "content");
@@ -137,20 +128,21 @@ public final class AppleMusicFlowEngine {
                         RenderEffect.createRuntimeShaderEffect(blur, "content"), chain);
             }
         }
-        RuntimeShader saturate = new RuntimeShader(SATURATE);
-        saturate.setFloatUniform("saturation", AppleFlowMath.SATURATION);
         chain = RenderEffect.createChainEffect(
-                RenderEffect.createRuntimeShaderEffect(saturate, "content"), chain);
+                RenderEffect.createRuntimeShaderEffect(new RuntimeShader(SATURATE), "content"),
+                chain);
         scene.setRenderEffect(chain);
         cached = null;
     }
 
-    /** Pixi 7.4.3's 15 taps, clamped to the album-filled viewport at its edges. */
+    /** Pixi 7.4.3's 15 taps, with transparent samples outside the scene. */
     private static String blurShader(boolean horizontal) {
         StringBuilder code = new StringBuilder("uniform shader content;\n"
                 + "uniform float2 size;\nuniform float tapStep;\n"
                 + "half4 tap(float2 p) {\n"
-                + "  return content.eval(clamp(p, float2(0.5), size - float2(0.5)));\n}\n"
+                + "  if (p.x < 0.0 || p.y < 0.0 || p.x >= size.x || p.y >= size.y)\n"
+                + "    return half4(0.0);\n"
+                + "  return content.eval(p);\n}\n"
                 + "half4 main(float2 p) {\n  float4 color = float4(0.0);\n");
         for (int offset = -7; offset <= 7; offset++) {
             String weight = Float.toString(AppleFlowMath.HALF_KERNEL[7 - Math.abs(offset)]);
@@ -184,12 +176,8 @@ public final class AppleMusicFlowEngine {
         int layerSave = canvas.saveLayer(0f, 0f, AppleFlowMath.WORK_WIDTH, workHeight, layer);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         float width = AppleFlowMath.WORK_WIDTH, height = workHeight;
-        // The original width-based square left most of a portrait screen transparent.
-        // A complete colour field keeps the broad wash visible above and below the cards.
-        canvas.drawBitmap(art, null, new android.graphics.RectF(0f, 0f, width, height), paint);
-        float basis = AppleFlowMath.layerBasis(width, height);
         for (int i = 0; i < 4; i++) {
-            float side = basis * AppleFlowMath.SCALES[i];
+            float side = width * AppleFlowMath.SCALES[i];
             int save = canvas.save();
             canvas.translate(AppleFlowMath.centerX(i, width, rotations[i]),
                     AppleFlowMath.centerY(i, width, height, rotations[i]));
@@ -210,44 +198,6 @@ public final class AppleMusicFlowEngine {
         canvas.restoreToCount(save);
     }
 
-    /** Adds roughly one RGB level of zero-mean noise after the 256px scene is enlarged. */
-    static void drawDither(Canvas canvas, float width, float height) {
-        if (!canvas.isHardwareAccelerated() || ditherUnavailable) return;
-        try {
-            if (ditherPaint == null) ditherPaint = createDitherPaint();
-            canvas.drawRect(0f, 0f, width, height, ditherPaint);
-        } catch (Throwable ignored) {
-            // Grain must never make the underlying album flow unavailable.
-            ditherPaint = null;
-            ditherUnavailable = true;
-        }
-    }
-
-    private static Paint createDitherPaint() {
-        int[] pixels = new int[DITHER_TILE_SIZE * DITHER_TILE_SIZE];
-        Arrays.fill(pixels, 0, pixels.length / 2, 0xffffffff);
-        Arrays.fill(pixels, pixels.length / 2, pixels.length, 0xff000000);
-        int state = 0x51ed270b;
-        for (int i = pixels.length - 1; i > 0; i--) {
-            state ^= state << 13;
-            state ^= state >>> 17;
-            state ^= state << 5;
-            int j = (state & 0x7fffffff) % (i + 1);
-            int color = pixels[i];
-            pixels[i] = pixels[j];
-            pixels[j] = color;
-        }
-        Bitmap tile = Bitmap.createBitmap(DITHER_TILE_SIZE, DITHER_TILE_SIZE,
-                Bitmap.Config.ARGB_8888);
-        tile.setPixels(pixels, 0, DITHER_TILE_SIZE, 0, 0,
-                DITHER_TILE_SIZE, DITHER_TILE_SIZE);
-        Paint paint = new Paint();
-        paint.setShader(new BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT));
-        paint.setBlendMode(BlendMode.OVERLAY);
-        paint.setAlpha(3);
-        return paint;
-    }
-
     /** Settings preview uses the phone's viewport geometry, then scales it into its thumbnail. */
     public boolean drawPreview(Canvas canvas, float viewportWidth, float viewportHeight,
                                float density, float targetWidth, float targetHeight) {
@@ -256,7 +206,6 @@ public final class AppleMusicFlowEngine {
                 viewportWidth, viewportHeight, density);
         if (currentFrame == null) return false;
         draw(canvas, currentFrame, targetWidth, targetHeight);
-        drawDither(canvas, targetWidth, targetHeight);
         return true;
     }
 
@@ -286,11 +235,8 @@ public final class AppleMusicFlowEngine {
         Path clip = new Path();
         clip.addRoundRect(0f, 0f, width, height, radius, radius, Path.Direction.CW);
         canvas.clipPath(clip);
-        int mapped = canvas.save();
         canvas.concat(flowToLocal);
         draw(canvas, frame, flowWidth, flowHeight);
-        canvas.restoreToCount(mapped);
-        drawDither(canvas, width, height);
         canvas.restoreToCount(save);
     }
 }

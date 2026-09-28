@@ -16,12 +16,8 @@ final class CoverFlowScene {
         return eligible ? 0.65f * clamp(flowOpacity) : 0f;
     }
 
-    static float lyricDim(float lyricShow) {
-        return 0.2f * clamp(lyricShow);
-    }
-
     static int lyricShade(float lyricShow) {
-        return Math.round(255f * lyricDim(lyricShow));
+        return Math.round(255f * 0.4f * clamp(lyricShow));
     }
 
     /** The flow must precede both the keyguard subtree and any already attached discs. */
