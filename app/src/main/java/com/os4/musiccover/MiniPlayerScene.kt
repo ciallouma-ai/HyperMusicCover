@@ -17,8 +17,8 @@ internal object MiniPlayerScene {
         private set
     @Volatile private var fullScreenAod = false
 
-    /** The ordinary/custom AOD owns the screen; only the full-screen AOD keeps this row. */
-    val customAodActive: Boolean
+    /** The ordinary (non-full-screen) AOD owns the screen; only full-screen AOD keeps the row. */
+    val plainAodActive: Boolean
         get() = aodActive && !fullScreenAod
 
     val fullScreenAodActive: Boolean
@@ -96,15 +96,23 @@ internal object MiniPlayerScene {
 
     private fun setAodActive(active: Boolean) {
         val keyguardExitReset = active && keyguardGoingAway
-        val fullScreen = active && Main.fullAodOn()
         if (keyguardExitReset) keyguardGoingAway = false
-        if (aodActive == active && fullScreenAod == fullScreen && !keyguardExitReset) return
+        if (aodActive == active) {
+            if (keyguardExitReset) MiniPlayerRuntime.refresh()
+            return
+        }
+        // This reflection-backed query is meaningful only on the edge into doze. Repeated
+        // setIsDozing(true), waking and fallback cleanup must not reclassify the same scene.
+        val fullScreen = active && Main.fullAodOn()
         fullScreenAod = fullScreen
         aodActive = active
         Xp.log("MCMini: AOD active=$active fullScreen=$fullScreen")
         if (!active) MiniPlayerRuntime.aodEnded()
         MiniPlayerRuntime.refresh()
     }
+
+    /** Idempotent fallback for ROMs that lose the matching setIsDozing(false) callback. */
+    fun noteWaking() = setAodActive(false)
 
     private fun setKeyguardGoingAway(goingAway: Boolean) {
         if (keyguardGoingAway == goingAway) return

@@ -98,7 +98,6 @@ internal class ShortcutDisc(context: Context) : FrameLayout(context) {
         element.invalidateOutline()
         // A material applied before there was a size draws nothing; it goes on again now.
         if (first && w > 1 && h > 1) applyDress()
-        MiniGlassOutline.geometry(element)
     }
 
     /**
@@ -212,7 +211,6 @@ internal class ShortcutDisc(context: Context) : FrameLayout(context) {
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         placeElement()
-        MiniGlassOutline.geometry(element)
     }
 
     private fun applyDress() {
@@ -222,7 +220,7 @@ internal class ShortcutDisc(context: Context) : FrameLayout(context) {
 
     internal fun restoreMaterialOutline(view: ImageView) {
         if (view !== element) return
-        // The element has its own SDF bounds; the frame clips the finished disc once.
+        // The frame owns the single rounded clip; do not rebuild private glass SDF state here.
         element.outlineProvider = elementShape
         element.clipToOutline = false
         element.invalidateOutline()

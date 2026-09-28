@@ -1021,6 +1021,7 @@ public class Main extends XposedModule {
                 return result;
             });
             Xp.hookAll(ks, "onStartedWakingUp", chain -> {
+                MiniPlayerRuntime.noteWaking();
                 ClockCollapse.noteWaking();
                 main().post(new Runnable() {
                     @Override
@@ -2764,6 +2765,7 @@ public class Main extends XposedModule {
                 if (Intent.ACTION_SCREEN_ON.equals(a)) {
                     sScreenOn = true;
                     sAodGrey = Float.NaN;
+                    MiniPlayerRuntime.noteWaking();
                 } else if (Intent.ACTION_SCREEN_OFF.equals(a)) {
                     sScreenOn = false;
                     sAodGrey = Float.NaN;

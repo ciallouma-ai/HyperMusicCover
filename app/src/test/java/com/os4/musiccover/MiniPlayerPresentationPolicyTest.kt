@@ -15,7 +15,7 @@ class MiniPlayerPresentationPolicyTest {
         nativeSceneOverride: Boolean = false,
         transitionActive: Boolean = false,
         controlCenterOpen: Boolean = false,
-        hideForCustomAod: Boolean = false,
+        hideForPlainAod: Boolean = false,
     ) = MiniPlayerPresentationPolicy.evaluate(
         MiniPlayerPresentationInput(
             enabled,
@@ -26,7 +26,7 @@ class MiniPlayerPresentationPolicyTest {
             nativeSceneOverride,
             transitionActive,
             controlCenterOpen,
-            hideForCustomAod,
+            hideForPlainAod,
         ),
     )
 
@@ -73,10 +73,10 @@ class MiniPlayerPresentationPolicyTest {
             sceneVisible = false, controlCenterOpen = true, nativeRequested = true))
     }
 
-    @Test fun customAodHidesTheIslandEvenDuringATransition() {
-        assertEquals(MiniPlayerPresentation(false, true), presentation(hideForCustomAod = true))
+    @Test fun plainAodHidesTheIslandAndReleasesTheNativeCard() {
+        assertEquals(MiniPlayerPresentation(false, false), presentation(hideForPlainAod = true))
         assertEquals(MiniPlayerPresentation(false, false), presentation(
-            hideForCustomAod = true, transitionActive = true))
+            hideForPlainAod = true, transitionActive = true))
         assertEquals(MiniPlayerPresentation(true, true), presentation())
     }
 

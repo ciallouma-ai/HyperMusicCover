@@ -88,6 +88,7 @@ internal data class MiniMaterialStyle(
 /** Applies only the custom modes. The existing recorded-card path owns SYSTEM. */
 internal object MiniMaterialRenderer {
     private val loggedFailures = HashSet<Int>()
+    private var highlightFailureLogged = false
     private val glassParameters = floatArrayOf(
         0.67f, 0.16f, 0.09f, 0f, 0.24f, 1.4f, -0.02f, 0.3f, 0.6f, 1f,
         0.03f, 1f, 1f, 1f, 0.1f, 0.2f, 0.3f, 1f, 1f, 72f, 3.8f, 80f, 800f,
@@ -114,14 +115,13 @@ internal object MiniMaterialRenderer {
         }
     }
 
-    /** True only when the native Glass calls succeeded on this view. */
-    fun apply(view: ImageView, style: MiniMaterialStyle, classLoader: ClassLoader): Boolean {
+    fun apply(view: ImageView, style: MiniMaterialStyle, classLoader: ClassLoader) {
         (view.parent as? View)?.let(::clearContainer)
         view.background = null
         view.setImageDrawable(null)
         if (style.mode == MiniMaterialStyle.PURE) {
             fill(view, style.pureColor)
-            return false
+            return
         }
         try {
             fill(view, Color.argb(1, 255, 255, 255))
@@ -133,14 +133,12 @@ internal object MiniMaterialRenderer {
                     glass(view, classLoader, style.softGlassBlur, style.softLuminance)
                 }
             }
-            return style.mode == MiniMaterialStyle.SOFT_GLASS
         } catch (error: Throwable) {
             clearContainer(view)
             fill(view, if (style.mode == MiniMaterialStyle.ADVANCED)
                 tint(style.advancedColor, style.advancedOpacity)
                 else tint(style.softColor, style.softOpacity))
             if (loggedFailures.add(style.mode)) Xp.log("MCMini: custom material ${style.mode} unavailable: $error")
-            return false
         }
     }
 
@@ -160,8 +158,15 @@ internal object MiniMaterialRenderer {
         cls.getMethod("setMiBackgroundBlurRadius", Int::class.javaPrimitiveType).invoke(view, radius)
         cls.getMethod("addMiBackgroundBlendColor", Int::class.javaPrimitiveType,
             Int::class.javaPrimitiveType).invoke(view, tint(color, opacity), 101)
-        if (highlight) cls.getMethod("setMiBloomStroke", FloatArray::class.java)
-            .invoke(view, bloomParameters.copyOf())
+        if (highlight) runCatching {
+            cls.getMethod("setMiBloomStroke", FloatArray::class.java)
+                .invoke(view, bloomParameters.copyOf())
+        }.onFailure { error ->
+            if (!highlightFailureLogged) {
+                highlightFailureLogged = true
+                Xp.log("MCMini: optional material highlight unavailable; continuing without it: $error")
+            }
+        }
     }
 
     private fun glass(view: View, loader: ClassLoader, radius: Int, luminance: Float) {

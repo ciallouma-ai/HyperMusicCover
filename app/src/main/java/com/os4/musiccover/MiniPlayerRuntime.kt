@@ -68,6 +68,9 @@ object MiniPlayerRuntime {
             .forEach { runCatching { it.refresh() } }
     }
 
+    /** Wake fallback when a ROM omits the matching setIsDozing(false) callback. */
+    @JvmStatic fun noteWaking() = MiniPlayerScene.noteWaking()
+
     /**
      * Each hook on its own: a build that renamed one class costs the feature that needed it,
      * not the rest of the mini player.
@@ -420,8 +423,13 @@ object MiniPlayerRuntime {
      * them on every view material() dressed, the way the card's does; once the wake's run is
      * over, each is dressed from the recipe again.
      */
-    private val dressedViews: MutableSet<ImageView> =
-        java.util.Collections.newSetFromMap(java.util.WeakHashMap())
+    private sealed interface MaterialHome {
+        data object System : MaterialHome
+        data class Custom(val style: MiniMaterialStyle) : MaterialHome
+    }
+
+    /** Weak keys avoid retaining islands after SystemUI replaces their host. */
+    private val materialHomes = WeakHashMap<ImageView, MaterialHome>()
 
     /** The last frame's arguments while the AOD's colours are on the views; null otherwise. */
     private var aodDimArgs: Array<Any?>? = null
@@ -487,7 +495,7 @@ object MiniPlayerRuntime {
         val depth = runCatching { dimDepth(args) }.getOrNull()
         aodDimDepth = depth ?: -1f
         aodDimLook = depth?.let { d -> runCatching { dimLook(d) }.getOrNull() }
-        for (view in dressedViews.toList()) dimView(view, args)
+        for (view in materialHomes.keys.toList()) dimView(view, args)
         dimNote("frame ${Integer.toHexString(args[4] as Int)} ta=${"%.2f".format(args[13] as Float)} " +
             "d=${depth?.let { "%.2f".format(it) } ?: "?"}${if (aodDimLook == null) " raw" else ""}")
         // The run ends in completeFullAodAnim; should it be cut short, the last frame settles it.
@@ -590,9 +598,11 @@ object MiniPlayerRuntime {
         aodDimLook = null
         val cl = loader ?: return
         var later = 0
-        for (view in dressedViews.toList()) {
+        for ((view, materialHome) in materialHomes.entries.map { it.key to it.value }) {
             if (view.isAttachedToWindow) {
-                if (!home) material(view, cl)
+                // A depth-zero OEM frame is already the system recipe, but it is never a
+                // custom recipe. Custom views must therefore always be restored explicitly.
+                if (!home || materialHome is MaterialHome.Custom) restoreMaterial(view, cl, materialHome)
             } else {
                 // Out of its window now, dimmed while it was in: dressed again when it comes
                 // back, or it came back dark on a lit screen with nothing left to undo it.
@@ -601,7 +611,7 @@ object MiniPlayerRuntime {
                     override fun onViewAttachedToWindow(v: View) {
                         v.removeOnAttachStateChangeListener(this)
                         if (aodDimArgs == null) {
-                            material(view, cl)
+                            restoreMaterial(view, cl, materialHome)
                             dimNote("redressed on attach")
                         }
                     }
@@ -635,7 +645,7 @@ object MiniPlayerRuntime {
     private val dimLog = ArrayDeque<String>()
 
     private fun dimNote(what: String) {
-        val pill = dressedViews.toList().filter { it.isAttachedToWindow }.maxByOrNull { it.width }
+        val pill = materialHomes.keys.toList().filter { it.isAttachedToWindow }.maxByOrNull { it.width }
         var seen = 1f
         var v: View? = pill
         while (v != null) {
@@ -1449,10 +1459,7 @@ object MiniPlayerRuntime {
                 }
                 call.method.invoke(null, *args)
             }
-            restoreMaterialOutline(view, recipe.any { it.method.name == "setMiGlassCompat" })
-            dressedViews.add(view)
-            // Dressed in the AOD - a small island coming up there: dimmed as the rest are.
-            aodDimArgs?.let { dimView(view, it) }
+            restoreMaterialOutline(view)
         }.onFailure { error ->
             val cause = (error as? java.lang.reflect.InvocationTargetException)?.targetException ?: error
             if (!materialFailed) {
@@ -1461,21 +1468,38 @@ object MiniPlayerRuntime {
             }
             view.background = null
             view.setImageDrawable(GradientDrawable().apply { setColor(0x9E1F2324.toInt()) })
-            restoreMaterialOutline(view, false)
+            restoreMaterialOutline(view)
         }
+        registerMaterial(view, MaterialHome.System)
     }
 
     internal fun material(view: ImageView, classLoader: ClassLoader, style: MiniMaterialStyle) {
         if (style.mode == MiniMaterialStyle.SYSTEM) material(view, classLoader)
-        else restoreMaterialOutline(view, MiniMaterialRenderer.apply(view, style, classLoader))
+        else {
+            MiniMaterialRenderer.apply(view, style, classLoader)
+            restoreMaterialOutline(view)
+            registerMaterial(view, MaterialHome.Custom(style))
+        }
     }
 
-    private fun restoreMaterialOutline(view: ImageView, glass: Boolean) {
+    private fun registerMaterial(view: ImageView, home: MaterialHome) {
+        materialHomes[view] = home
+        // A view created while already in full-screen AOD must join the current dim frame.
+        aodDimArgs?.let { dimView(view, it) }
+    }
+
+    private fun restoreMaterial(view: ImageView, classLoader: ClassLoader, home: MaterialHome) {
+        when (home) {
+            MaterialHome.System -> material(view, classLoader)
+            is MaterialHome.Custom -> material(view, classLoader, home.style)
+        }
+    }
+
+    private fun restoreMaterialOutline(view: ImageView) {
         when (val parent = view.parent) {
             is MiniPlayerView -> parent.restoreMaterialOutline(view)
             is ShortcutDisc -> parent.restoreMaterialOutline(view)
         }
-        MiniGlassOutline.dressed(view, glass)
     }
 }
 
@@ -1680,7 +1704,7 @@ private class MiniPlayerController(
         // each frame, and rowFade is whatever was last written - the wake's 0.04, or the 1 the
         // hold wrote a frame ago. Waking, the pill let go on one and took the other: the row
         // dropped to nothing and faded in beside buttons that stayed (filmed 2026-09-26).
-        if (MiniPlayerScene.fullScreenAodActive || holdButtons) rowHeldOff = true
+        if (MiniPlayerScene.aodActive || holdButtons) rowHeldOff = true
         else if (rowHeldOff && rowFade >= 0.99f) rowHeldOff = false
         followRowFade = rowFade
         // The lock screen's editor button, up after a long press on the clock, is where the row
@@ -6542,7 +6566,7 @@ private class MiniPlayerController(
         val placed = followHost.invert(hostInverse)
         for (side in 0..1) {
             val button = button(side)
-            val shown = !MiniPlayerScene.customAodActive && placed && discsWanted &&
+            val shown = placed && discsWanted &&
                 button.isShown && button.width > 0 && button.height > 0
             var disc = discs[side]
             if (!shown) {
@@ -6606,9 +6630,10 @@ private class MiniPlayerController(
     private fun holdButtonsThroughDoze() {
         val root = followRoot?.get()
         val now = android.os.SystemClock.uptimeMillis()
-        if (MiniPlayerScene.customAodActive) {
+        if (MiniPlayerScene.plainAodActive) {
             holdButtons = false
             backSince = 0L
+            traceDoze(buttonChainFade(root, false))
             return
         }
         if (MiniPlayerScene.fullScreenAodActive && discsWanted && root != null) {
@@ -6617,16 +6642,7 @@ private class MiniPlayerController(
         }
         if (!holdButtons) return
         // The lower of the two chains as the doze left it this frame, before it is put back.
-        var natural = 1f
-        for (side in 0..1) {
-            var v: View? = findImage(button(side)) ?: button(side)
-            while (v != null && v !== root && v !== host) {
-                natural = min(natural, v.alpha * v.transitionAlpha)
-                if (v.alpha < 1f) v.alpha = 1f
-                if (v.transitionAlpha < 1f) v.transitionAlpha = 1f
-                v = v.parent as? View
-            }
-        }
+        val natural = buttonChainFade(root, true)
         traceDoze(natural)
         if (MiniPlayerScene.aodActive) {
             backSince = 0L
@@ -6640,6 +6656,22 @@ private class MiniPlayerController(
             backSince = 0L
             traceDoze(natural)
         }
+    }
+
+    /** Reads both button chains and optionally restores the alpha the full-screen AOD consumes. */
+    private fun buttonChainFade(root: View?, restore: Boolean): Float {
+        if (root == null) return 1f
+        var natural = 1f
+        for (side in 0..1) {
+            var v: View? = findImage(button(side)) ?: button(side)
+            while (v != null && v !== root && v !== host) {
+                natural = min(natural, v.alpha * v.transitionAlpha)
+                if (restore && v.alpha < 1f) v.alpha = 1f
+                if (restore && v.transitionAlpha < 1f) v.transitionAlpha = 1f
+                v = v.parent as? View
+            }
+        }
+        return natural
     }
 
     // ---- the doze, frame by frame, for `op mini`
@@ -8162,7 +8194,7 @@ private class MiniPlayerController(
         // The discs stay while any island is out as its row: the last notification pulled out
         // of a row with no music left the row empty, and the torch and camera lost their glass
         // with it (2026-09-25) - where the music, out as its card, still counts as an island.
-        discsWanted = !MiniPlayerScene.customAodActive && (keyguardOwned ||
+        discsWanted = !MiniPlayerScene.plainAodActive && (keyguardOwned ||
             enabled && !MiniPlayerScene.keyguardGoingAway && Main.keyguardLocked() &&
             LockIslands.releasedKeys().isNotEmpty())
         val controlCenterOpen = keyguardOwned &&
@@ -8187,7 +8219,7 @@ private class MiniPlayerController(
                 nativeSceneOverride = keyguardOwned && Main.coverSceneActive(),
                 transitionActive = transition,
                 controlCenterOpen = controlCenterOpen,
-                hideForCustomAod = MiniPlayerScene.customAodActive,
+                hideForPlainAod = MiniPlayerScene.plainAodActive,
             ),
         )
         // An exchange keeps the row up - out of the cover, the row went for its frames and every

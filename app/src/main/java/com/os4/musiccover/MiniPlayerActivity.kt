@@ -29,7 +29,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.os4.musiccover.ui.screen.features.ValueSlider
 import com.os4.musiccover.ui.theme.AppTheme
@@ -133,7 +135,7 @@ private fun MaterialControls(title: String?, section: String, config: JSONObject
                              push: (String, String, Any) -> Unit) {
     Column {
         if (title != null) MiuixText(title, Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
-        val modes = listOf("系统自动", "纯色", "高级材质", "柔光玻璃")
+        val modes = listOf("系统自动", "纯色", "高级材质（实验性）", "柔光玻璃（实验性）")
         val mode = config.optInt("mode").coerceIn(0, 3)
         WindowDropdownPreference(title = "背景材质", summary = modes[mode], items = modes,
             selectedIndex = mode, enabled = alive,
@@ -174,9 +176,18 @@ private fun MaterialSlider(title: String, section: String, key: String, config: 
 @Composable
 private fun ColorInput(title: String, section: String, key: String, saved: Int, alive: Boolean,
                        push: (String, String, Any) -> Unit) {
-    var input by remember(section, key, saved) { mutableStateOf("#%08X".format(saved)) }
-    val valid = input.matches(Regex("#?[0-9a-fA-F]{8}"))
-    val preview = if (valid) input.removePrefix("#").toLong(16).toInt() else saved
+    val formatted = "#%08X".format(saved)
+    var input by remember(section, key) {
+        mutableStateOf(TextFieldValue(formatted, TextRange(formatted.length)))
+    }
+    val parsed = input.text.takeIf { it.matches(Regex("#?[0-9a-fA-F]{8}")) }
+        ?.removePrefix("#")?.toLongOrNull(16)?.toInt()
+    // A valid local edit has already updated saved through push(). Do not rebuild its text or
+    // selection merely to uppercase it; synchronize only a genuinely external configuration.
+    LaunchedEffect(saved) {
+        if (parsed != saved) input = TextFieldValue(formatted, TextRange(formatted.length))
+    }
+    val preview = parsed ?: saved
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         MiuixText(title)
         Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
@@ -187,10 +198,11 @@ private fun ColorInput(title: String, section: String, key: String, saved: Int, 
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                 modifier = Modifier.weight(1f).padding(start = 12.dp, top = 8.dp),
                 onValueChange = { next ->
-                    if (next.length > 9) return@BasicTextField
+                    if (next.text.length > 9) return@BasicTextField
                     input = next
-                    if (next.matches(Regex("#?[0-9a-fA-F]{8}")))
-                        push(section, key, next.removePrefix("#").toLong(16).toInt())
+                    next.text.takeIf { it.matches(Regex("#?[0-9a-fA-F]{8}")) }
+                        ?.removePrefix("#")?.toLongOrNull(16)?.toInt()
+                        ?.let { push(section, key, it) }
                 })
         }
         MiuixText("ARGB 格式：#AARRGGBB", Modifier.padding(top = 4.dp))

@@ -710,7 +710,6 @@ internal class MiniPlayerView(context: Context) : FrameLayout(context) {
         if (resized) {
             traced("MC f.bounds") { setLeftTopRightBottom(left, top, left + morphW, top + morphH) }
             traced("MC f.matBounds") { materialLayer.setLeftTopRightBottom(0, 0, morphW, morphH) }
-            MiniGlassOutline.geometry(materialLayer)
         }
         translationX = box.x - xy[0] - left
         translationY = box.y - xy[1] - top
@@ -765,7 +764,6 @@ internal class MiniPlayerView(context: Context) : FrameLayout(context) {
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         if (!morphing) {
             super.onLayout(changed, left, top, right, bottom)
-            MiniGlassOutline.geometry(materialLayer)
             return
         }
         // A layout pass mid-morph has just put the rest frame back (layout() is final): the
@@ -775,7 +773,6 @@ internal class MiniPlayerView(context: Context) : FrameLayout(context) {
         super.onLayout(changed, left, top, left + restWidth(), top + restHeight())
         setLeftTopRightBottom(left, top, left + morphW, top + morphH)
         materialLayer.layout(0, 0, morphW, morphH)
-        MiniGlassOutline.geometry(materialLayer)
     }
 
     /**

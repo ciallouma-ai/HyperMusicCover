@@ -1,5 +1,17 @@
 # HyperMusicCover 定制版更新日志
 
+## 0.5.1-custom.12-review-fixes（versionCode 513）
+
+- 修复自定义材质没有参与全屏 AOD 调光的问题：系统自动、纯色、高级材质和柔光玻璃均登记为弱引用材质实例，AOD 帧统一调光；亮屏、动画完成或 View 重新附着后恢复各自原始配方，不再把自定义样式恢复成系统材质。
+- 修正普通 AOD 策略：任意 AOD 都保持快捷按钮行状态，只有普通 AOD 隐藏模块组件；隐藏模块时同步释放原生媒体卡压制。`onStartedWakingUp` 和 `ACTION_SCREEN_ON` 增加幂等清理，避免 ROM 丢失 `setIsDozing(false)` 后组件长期隐藏。
+- `setMiBloomStroke` 改为可选装饰调用，缺失时高级材质继续保留混色和模糊，仅关闭高光并记录一次日志。
+- 撤回未通过设备验收的 `MiniGlassOutline`、未知 `8192` 轮廓标志以及形变期间逐帧 SDF 重建。保留单层圆角裁剪，并保留系统材质回放时按实际 View 尺寸修正已有 SDF 参数的逻辑。玻璃圆角锯齿仍为已知问题。
+- 设置页颜色输入改用保留选择区间的文本状态；仅在外部配置值确实变化时同步，不再在第八位输入完成后立刻大写重建并跳动光标。高级材质和柔光玻璃继续可选，并明确标为“实验性”。
+- Review 第 4 条所述“材质 key 刷新晚于绑定”未复现：`refreshUnsafe()` 已在每次绑定前调用 `updateMaterialKeys()`，因此未制造无效改动。
+- `minicfg`、广播和备份格式不变；不包含 Issue #21 的快捷背景总开关、常驻模式、AOD 定时显示或“只显示岛”等新功能。
+
+签名与验证：APK 使用 Android Debug 证书，不能直接覆盖不同签名的已安装版本。完整 JVM 单测、Release 构建、APK 元数据与签名核验结果见本次独立交付日志；未运行模拟器。
+
 ## 0.5.1-custom.11-rollback（versionCode 512）
 
 - 因用户报告 `custom.10-flow-polish` 存在严重故障，撤销该版的流光渲染、参数和歌词压暗改动；源码恢复至 `custom.9-apple-flow` 的实现。

@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-- 截至 `0.5.1-custom.4`（versionCode `505`），**系统自动／柔光玻璃材质的锁屏组件边缘锯齿仍未解决**。目标设备在安装此版后再次复测，现象与此前相近。不要仅凭本地测试或构建成功宣称修复。
+- 截至 `0.5.1-custom.12-review-fixes`（versionCode `513`），**系统自动／柔光玻璃材质的锁屏组件边缘锯齿仍未解决**。`custom.4` 的方案未通过目标设备验收，并已在 `custom.12` 撤回。不要仅凭本地测试或构建成功宣称修复。
 - 自定义息屏显示时底部组件残留的问题在 `custom.2` 已修复，并经目标设备复测确认。全屏 AOD 保留既有显示行为。
 - 本地 `custom.4` APK 与源码对应；APK 采用 Debug 证书签名。APK 不纳入 Git 仓库，也未建立 GitHub Release。
 
@@ -21,13 +21,14 @@
 | --- | --- | --- |
 | `custom.2` | `MiniPlayerView` 与 `ShortcutDisc` 让外层容器负责圆角裁剪，减少材质层的重复裁剪。 | 自定义息屏残留解决；玻璃锯齿未解决。 |
 | `custom.3` | 将模糊容器并入组件合成，并按当前轮廓使用 Canvas 抗锯齿遮罩。 | 玻璃锯齿未解决。 |
-| `custom.4` | 撤回遮罩，回放系统媒体卡材质后恢复组件轮廓，启用原生 Glass 轮廓标志，并按材质视图尺寸更新 SDF 上限。 | 玻璃锯齿仍未解决。 |
+| `custom.4` | 撤回遮罩，回放系统媒体卡材质后恢复组件轮廓，启用未知的私有轮廓标志，并在尺寸变化时重建 SDF 上限。 | 玻璃锯齿仍未解决。 |
+| `custom.12` | 删除 `MiniGlassOutline`、未知 `8192` 标志及形变期间逐帧反射/SDF 更新；保留单层裁剪，并仅在系统配方本来包含 SDF API 时按目标 View 实际尺寸修正其参数。 | 降低反射与逐帧 GPU 风险；明确不作为锯齿修复。 |
 
 相关入口：
 
 - `MiniPlayerRuntime.kt`：媒体卡材质的记录、回放与 `restoreMaterialOutline`；`settleAodDim`、`followShortcuts`、`updateDiscs` 处理亮屏、AOD 及快捷圆盘的状态。
-- `MiniPlayerView.kt` 与 `MiniPlayerSqueeze.kt`：迷你播放器和 `ShortcutDisc` 的外层裁剪、材质层布局与形变。
-- `MiniMaterialStyle.kt`：自定义柔光玻璃的厂商 API 调用；`MiniGlassOutline.kt`：`custom.4` 新增的原生轮廓和 SDF 尺寸同步。
-- `MiniPlayerScene.kt`：自定义息屏与全屏 AOD 的场景区分；已修复的息屏残留逻辑在此及其调用处。
+- `MiniPlayerView.kt` 与 `MiniPlayerSqueeze.kt`：迷你播放器和 `ShortcutDisc` 的单层外轮廓裁剪、材质层布局与形变。
+- `MiniMaterialStyle.kt`：自定义柔光玻璃的厂商 API 调用。`MiniGlassOutline.kt` 已在 `custom.12` 删除，不应在没有真机证据时恢复。
+- `MiniPlayerScene.kt`：普通息屏与全屏 AOD 的场景区分；已修复的息屏残留与唤醒兜底逻辑在此及其调用处。
 
-已有代码会与 HyperLight 的 `setMiGlass` 钩子共处；这可能影响厂商玻璃绘制，但**尚无证据证明它是本次锯齿的根因**。后续建议在目标设备上按上述四个状态分别记录实际材质 View 的尺寸、outline、裁剪、变换及厂商 Glass 调用，比较两个组件的状态变化，再针对证据修改。之前两次绘制层面的尝试和一次 SDF 状态调整均未通过设备验收。
+已有代码会与 HyperLight 的 `setMiGlass` 钩子共处；这可能影响厂商玻璃绘制，但**尚无证据证明它是本次锯齿的根因**。后续建议在目标设备上按上述四个状态分别记录实际材质 View 的尺寸、outline、裁剪、变换及厂商 Glass 调用，比较两个组件的状态变化，再针对证据修改。之前两次绘制层面的尝试和一次 SDF 状态调整均未通过设备验收。若需要恢复实验，请先从 `75cfc05` 对比被撤回实现，并单独保留可回退构建。
