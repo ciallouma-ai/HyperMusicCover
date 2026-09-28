@@ -6,7 +6,7 @@
 - 流光设置只保留开关。旧配置与备份沿用原开关状态，预设和滑块值不再生效；关闭开关仍显示静态封面背景。
 - 封面输入提升至 512×512，动态绘制使用 256 像素宽的缓冲区以控制多轮模糊开销。换曲过渡、歌词压暗、AOD 停帧与渲染失败时的静态回退保持接入当前锁屏链路。
 
-参考参数来自 Aadish Verma 的 Apple Music Web 逆向分析及重建代码。该效果不保证与 iOS/macOS 原生画面逐像素一致。验证和 APK 信息见本地 `dist/HyperMusicCover-0.5.1-custom.9-apple-flow-CHANGELOG.md`。
+参考参数来自 Aadish Verma 的 Apple Music Web 逆向分析及重建代码。该效果不保证与 iOS/macOS 原生画面逐像素一致。定向单测与 Release 构建通过；APK 元数据为 `0.5.1-custom.9-apple-flow`／`510`，v2 签名校验通过。APK 使用本地 Android Debug 证书，目标 HyperOS 合成效果仍需在设备上目视确认。
 
 ## 0.5.1-custom.8-flow-cards-fix（versionCode 509）
 
