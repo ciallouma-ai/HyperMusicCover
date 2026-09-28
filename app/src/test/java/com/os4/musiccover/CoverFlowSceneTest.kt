@@ -20,10 +20,11 @@ class CoverFlowSceneTest {
         assertEquals(0.2f, CoverFlowScene.opacity(1f, 0.2f, 1f), 0.0001f)
     }
 
-    @Test fun lyricFadeGraduallyReachesFortyPercentBlack() {
+    @Test fun lyricFadeGraduallyReachesTwentyPercentBlack() {
         assertEquals(0, CoverFlowScene.lyricShade(0f))
-        assertEquals(51, CoverFlowScene.lyricShade(0.5f))
-        assertEquals(102, CoverFlowScene.lyricShade(1f))
+        assertEquals(26, CoverFlowScene.lyricShade(0.5f))
+        assertEquals(51, CoverFlowScene.lyricShade(1f))
+        assertEquals(0.2f, CoverFlowScene.lyricDim(1f), 0f)
     }
 
     @Test fun backdropPrecedesExistingShortcutDiscs() {
