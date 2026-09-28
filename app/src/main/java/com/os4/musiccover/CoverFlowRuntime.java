@@ -4,14 +4,11 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.Rect;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
-import dev.kawarp.KawarpEngine;
-import dev.kawarp.KawarpFrame;
 
 /** Album-colour backdrop. The static wallpaper stays visible until its first hardware frame. */
 final class CoverFlowRuntime extends View {
@@ -19,7 +16,6 @@ final class CoverFlowRuntime extends View {
     private static CoverFlowRuntime sView;
     private static String sConfig = CoverFlowConfig.defaultJson();
     private static CoverFlowConfig.Settings sSettings = CoverFlowConfig.INSTANCE.fromJson(sConfig);
-    private static boolean sPlaying;
 
     private final Paint shadePaint = new Paint();
     private final Runnable frame = new Runnable() {
@@ -28,9 +24,8 @@ final class CoverFlowRuntime extends View {
             updateFrame();
         }
     };
-    private KawarpEngine engine;
-    private KawarpFrame frameState;
-    private long waitingSince;
+    private AppleMusicFlowEngine engine;
+    private AppleMusicFlowEngine.Frame frameState;
     private long lastFrame;
     private float readiness;
     private boolean hadReady;
@@ -57,19 +52,11 @@ final class CoverFlowRuntime extends View {
             Main.main().post(() -> applyConfig(normalized));
             return;
         }
-        CoverFlowConfig.Settings before = sSettings;
         CoverFlowConfig.Settings after = CoverFlowConfig.INSTANCE.fromJson(normalized);
         sConfig = normalized;
         sSettings = after;
         CoverFlowRuntime v = sView;
         if (v == null) return;
-        if (v.engine != null) {
-            v.configure(after);
-            if (before.getBlur() != after.getBlur() || before.getPreset() != after.getPreset()) {
-                Bitmap art = CoverCardLayer.currentFlowArt();
-                if (art != null && !art.isRecycled()) publish(art);
-            }
-        }
         v.refreshView();
     }
 
@@ -101,30 +88,12 @@ final class CoverFlowRuntime extends View {
         if (v == null || art == null || art.isRecycled() || !sSettings.getEnabled()) return;
         v.ensureEngine();
         if (v.engine == null || v.failed) return;
-        // KawarpEngine returns its input at exactly 128px. Use a 129px temporary so its worker
-        // owns a fresh 128px copy after this method returns.
-        Bitmap copy = null;
         try {
-            copy = Bitmap.createBitmap(129, 129, Bitmap.Config.ARGB_8888);
-            new Canvas(copy).drawBitmap(art, null, new Rect(0, 0, 129, 129),
-                    new Paint(Paint.FILTER_BITMAP_FLAG));
-            v.engine.setCover(copy);
+            v.engine.setCover(art);
             v.hasCover = true;
-            v.waitingSince = SystemClock.uptimeMillis();
             v.refreshView();
         } catch (Throwable t) {
             v.fail("cover preparation", t);
-        } finally {
-            if (copy != null) copy.recycle();
-        }
-    }
-
-    static void playback(boolean playing) {
-        sPlaying = playing;
-        CoverFlowRuntime v = sView;
-        if (v != null) {
-            if (v.engine != null) v.engine.setPlaying(playing);
-            v.refreshView();
         }
     }
 
@@ -141,6 +110,7 @@ final class CoverFlowRuntime extends View {
             v.setAlpha(0f);
             v.setVisibility(GONE);
             v.frameState = null;
+            if (v.engine != null) v.engine.pause();
             v.restoreVideoFallback();
         }
         CoverFlowCards.clear();
@@ -152,31 +122,11 @@ final class CoverFlowRuntime extends View {
     }
 
     private void ensureEngine() {
-        if (engine != null || failed || !KawarpEngine.isSupported()) return;
+        if (engine != null || failed) return;
         try {
-            engine = new KawarpEngine();
-            engine.setTransitionDuration(180);
-            engine.setPlaybackReactive(true);
-            engine.setPlaying(sPlaying);
-            configure(sSettings);
+            engine = new AppleMusicFlowEngine();
         } catch (Throwable t) {
             fail("shader creation", t);
-        }
-    }
-
-    private void configure(CoverFlowConfig.Settings settings) {
-        engine.setWarpIntensity(settings.getWarp());
-        engine.setAnimationSpeed(settings.getSpeed());
-        engine.setBlurPasses(settings.getBlur());
-        if (settings.getPreset() == CoverFlowConfig.SOFT) {
-            engine.setSaturation(1.1f);
-            engine.setAutoDarken(0.55f);
-        } else if (settings.getPreset() == CoverFlowConfig.VIVID) {
-            engine.setSaturation(1.8f);
-            engine.setAutoDarken(0.1f);
-        } else {
-            engine.setSaturation(1.5f);
-            engine.setAutoDarken(0f);
         }
     }
 
@@ -195,7 +145,7 @@ final class CoverFlowRuntime extends View {
     private void scheduleFrame() {
         if (frameScheduled) return;
         frameScheduled = true;
-        postOnAnimation(frame);
+        postDelayed(frame, AppleFlowMath.FRAME_MS);
     }
 
     private void updateFrame() {
@@ -207,11 +157,6 @@ final class CoverFlowRuntime extends View {
                     + " at card=" + Main.cardProgress());
         }
         long now = SystemClock.uptimeMillis();
-        boolean processing = engine != null && engine.isProcessing();
-        if (processing && waitingSince != 0L && now - waitingSince >= 5000L) {
-            fail("cover preparation timed out", null);
-            return;
-        }
         boolean ready = engine != null && engine.isReady();
         if (ready && !hadReady) {
             hadReady = true;
@@ -224,7 +169,14 @@ final class CoverFlowRuntime extends View {
             readiness = Math.min(1f, readiness + dt / (float) READY_FADE_MS);
         float progress = scene ? Main.cardProgress() : 0f;
         float opacity = CoverFlowScene.opacity(progress, CoverCardLayer.flowLit(), readiness);
-        frameState = ready ? engine.frame(now) : null;
+        try {
+            frameState = ready && scene ? engine.frame(now, getWidth(), getHeight(),
+                    getResources().getDisplayMetrics().density) : null;
+            if (!scene && engine != null) engine.pause();
+        } catch (Throwable t) {
+            fail("Apple renderer frame", t);
+            return;
+        }
         if (getVisibility() != VISIBLE && (scene || opacity > 0f)) setVisibility(VISIBLE);
         if (getAlpha() != opacity) setAlpha(opacity);
         if (getVisibility() == VISIBLE && !scene && opacity == 0f) setVisibility(GONE);
@@ -238,10 +190,8 @@ final class CoverFlowRuntime extends View {
         CoverFlowCards.update(this, frameState,
                 CoverFlowScene.cardOpacity(opacity, scene && Main.flowCardsEligible()),
                 0.4f * lyricShow);
-        if (opacity > 0f && (engine.isAnimating() || lyrics || processing || readiness < 1f))
-            postInvalidateOnAnimation();
-        if (scene && (!ready || processing || readiness < 1f || opacity > 0f
-                && engine.isAnimating())) scheduleFrame();
+        if (opacity > 0f && frameState != null) postInvalidateOnAnimation();
+        if (scene && (!ready || readiness < 1f || opacity > 0f)) scheduleFrame();
     }
 
     /** The video path has a static ImageView inside the keyguard, above the flow in the root. */
@@ -274,17 +224,20 @@ final class CoverFlowRuntime extends View {
         frameScheduled = false;
         restoreVideoFallback();
         CoverFlowCards.clear();
+        if (engine != null) engine.close();
+        engine = null;
+        hasCover = false;
+        frameState = null;
         super.onDetachedFromWindow();
     }
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        // OEM screenshot and blur probes use a software Canvas. RuntimeShader cannot draw there;
-        // the real hardware layer must remain healthy for the next lock-screen frame.
+        // OEM software screenshot probes must not disturb the live hardware scene.
         if (!canvas.isHardwareAccelerated() || engine == null || frameState == null
                 || getAlpha() <= 0f || failed) return;
         try {
-            engine.drawFrame(canvas, frameState, getWidth(), getHeight());
+            AppleMusicFlowEngine.draw(canvas, frameState, getWidth(), getHeight());
             int shade = CoverFlowScene.lyricShade(LockLyrics.flowShow());
             if (shade > 0) {
                 shadePaint.setColor(0xff000000);

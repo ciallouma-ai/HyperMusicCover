@@ -23,12 +23,19 @@ Third-party code
 GNU Lesser General Public License, version 3
 ---------------------------------------------
   Kawarp-AGSL (https://github.com/meowarex/kawarp-agsl)
-  Copyright (C) 2026 meowarex. Its AGSL renderer is included as
-  app/src/main/java/dev/kawarp/KawarpEngine.java. It remains under LGPL-3.0;
-  its complete license and source attribution are in third_party/kawarp-agsl/.
+  Copyright (C) 2026 meowarex. Its earlier AGSL renderer is retained as
+  app/src/main/java/dev/kawarp/KawarpEngine.java but is no longer invoked by
+  the lock-screen flow. It remains under LGPL-3.0; its complete license and
+  source attribution are in third_party/kawarp-agsl/.
   The original Kawarp rendering design and shader mathematics are by
   better-lyrics (@boidushya), licensed under MIT. The original MIT text is
   reproduced in third_party/kawarp-agsl/THIRD-PARTY.md.
+
+The current lock-screen flow's independently written Android renderer uses
+published parameters and shader mathematics documented by Aadish Verma in
+"Reverse engineering Apple Music's background gradient" and the associated
+html-music reconstruction (https://www.aadishv.dev/music and
+https://github.com/aadishv/html-music). No Pixi.js code is bundled.
 
 
 Parts of this program are adapted from the projects below and remain under the

@@ -278,8 +278,10 @@ final class CoverCardLayer extends View implements Choreographer.FrameCallback {
             new Canvas(art).drawBitmap(readable, crop,
                     new Rect(0, 0, art.getWidth(), art.getHeight()),
                     new Paint(Paint.FILTER_BITMAP_FLAG));
-            flowArt = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888);
-            new Canvas(flowArt).drawBitmap(art, null, new Rect(0, 0, 128, 128),
+            flowArt = Bitmap.createBitmap(AppleFlowMath.ART_SIZE, AppleFlowMath.ART_SIZE,
+                    Bitmap.Config.ARGB_8888);
+            new Canvas(flowArt).drawBitmap(art, null,
+                    new Rect(0, 0, AppleFlowMath.ART_SIZE, AppleFlowMath.ART_SIZE),
                     new Paint(Paint.FILTER_BITMAP_FLAG));
             // The AOD's own dimming can flatten the wallpaper almost to black. A small copy of
             // the same static blur is drawn over it at low alpha only in the full-screen AOD.
@@ -476,7 +478,6 @@ final class CoverCardLayer extends View implements Choreographer.FrameCallback {
 
     static void playback(boolean on) {
         sPlayingState = on;
-        CoverFlowRuntime.playback(on);
         CoverCardLayer v = sView;
         if (v != null) {
             v.playing = on;

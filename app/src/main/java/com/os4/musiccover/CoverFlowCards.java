@@ -1,7 +1,6 @@
 package com.os4.musiccover;
 
 import android.graphics.Canvas;
-import android.graphics.ColorFilter;
 import android.graphics.Matrix;
 import android.graphics.Outline;
 import android.graphics.PixelFormat;
@@ -10,8 +9,6 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
-import dev.kawarp.KawarpFrame;
-import dev.kawarp.KawarpFrameRenderer;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -60,7 +57,8 @@ final class CoverFlowCards {
         });
     }
 
-    static void update(CoverFlowRuntime source, KawarpFrame frame, float alpha, float shade) {
+    static void update(CoverFlowRuntime source, AppleMusicFlowEngine.Frame frame,
+                       float alpha, float shade) {
         if (frame == null || alpha <= 0f || !source.isAttachedToWindow()
                 || source.getWidth() <= 0 || source.getHeight() <= 0) {
             clear();
@@ -193,7 +191,7 @@ final class CoverFlowCards {
             }
         }
 
-        void frame(CoverFlowRuntime source, KawarpFrame frame, float alpha,
+        void frame(CoverFlowRuntime source, AppleMusicFlowEngine.Frame frame, float alpha,
                    float shade, float fallbackRadius) {
             View bg = target();
             if (bg == null || drawable == null) return;
@@ -227,13 +225,12 @@ final class CoverFlowCards {
     }
 
     private static final class CardDrawable extends Drawable {
-        private final KawarpFrameRenderer renderer = new KawarpFrameRenderer();
-        private KawarpFrame frame;
+        private AppleMusicFlowEngine.Frame frame;
         private float[] map;
         private float flowWidth, flowHeight, radius, alpha, shade;
         private boolean failed;
 
-        void frame(KawarpFrame next, float fw, float fh, int width, int height,
+        void frame(AppleMusicFlowEngine.Frame next, float fw, float fh, int width, int height,
                    float[] basis, float corner, float strength, float lyricShade) {
             frame = next;
             flowWidth = fw;
@@ -249,9 +246,8 @@ final class CoverFlowCards {
         @Override public void draw(Canvas canvas) {
             if (failed || frame == null || map == null || !canvas.isHardwareAccelerated()) return;
             try {
-                renderer.draw(canvas, frame, flowWidth, flowHeight, 0f, 0f,
-                        getBounds().width(), getBounds().height(), map[0], map[1], map[2], map[3],
-                        map[4], map[5], radius, alpha, shade);
+                AppleMusicFlowEngine.drawMapped(canvas, frame, map, flowWidth, flowHeight,
+                        getBounds().width(), getBounds().height(), radius, alpha, shade);
             } catch (Throwable t) {
                 failed = true;
                 Xp.log(TAG + "card drawing unavailable; native material retained: " + t);
@@ -259,7 +255,7 @@ final class CoverFlowCards {
         }
 
         @Override public void setAlpha(int alpha) {}
-        @Override public void setColorFilter(ColorFilter filter) {}
+        @Override public void setColorFilter(android.graphics.ColorFilter filter) {}
         @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
     }
 }

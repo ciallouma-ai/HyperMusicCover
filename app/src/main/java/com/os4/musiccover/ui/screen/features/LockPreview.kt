@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -45,9 +46,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.os4.musiccover.ModuleBridge
+import com.os4.musiccover.AppleMusicFlowEngine
 import com.os4.musiccover.CoverFlowConfig
 import com.os4.musiccover.R
-import dev.kawarp.KawarpEngine
 import kotlinx.coroutines.delay
 import kotlin.math.max
 import kotlin.math.min
@@ -133,43 +134,25 @@ fun LockPreview(
     }
     val cover = art ?: sampleCover
     val flow = CoverFlowConfig.fromJson(flowConfig)
-    val flowOn = coverStyle == 1 && flow.enabled && KawarpEngine.isSupported()
+    val flowOn = coverStyle == 1 && flow.enabled
     val flowEngine = remember(flowOn) {
-        if (flowOn) runCatching { KawarpEngine() }.getOrNull() else null
+        if (flowOn) runCatching { AppleMusicFlowEngine() }.getOrNull() else null
+    }
+    DisposableEffect(flowEngine) {
+        onDispose { flowEngine?.close() }
     }
     var flowFrame by remember { mutableIntStateOf(0) }
-    LaunchedEffect(flowEngine, cover, flowConfig, flowOn) {
+    LaunchedEffect(flowEngine, cover, flowOn) {
         if (!flowOn || flowEngine == null) return@LaunchedEffect
-        // A drag can change blur many times; debounce its cover preprocessing.
-        delay(180L)
-        flowEngine.setWarpIntensity(flow.warp)
-        flowEngine.setAnimationSpeed(flow.speed)
-        flowEngine.setBlurPasses(flow.blur)
-        flowEngine.setSaturation(when (flow.preset) {
-            CoverFlowConfig.SOFT -> 1.1f
-            CoverFlowConfig.VIVID -> 1.8f
-            else -> 1.5f
-        })
-        flowEngine.setAutoDarken(when (flow.preset) {
-            CoverFlowConfig.SOFT -> 0.55f
-            CoverFlowConfig.VIVID -> 0.1f
-            else -> 0f
-        })
-        flowEngine.setTransitionDuration(180)
         val readable = if (cover.config == Bitmap.Config.HARDWARE)
             cover.copy(Bitmap.Config.ARGB_8888, false) else cover
-        // 129px guarantees the engine's 128px scale creates its own copy.
-        val thumbnail = Bitmap.createBitmap(129, 129, Bitmap.Config.ARGB_8888)
-        android.graphics.Canvas(thumbnail).drawBitmap(readable, null,
-            AndroidRect(0, 0, 129, 129), Paint(Paint.FILTER_BITMAP_FLAG))
-        flowEngine.setCover(thumbnail)
-        thumbnail.recycle()
+        flowEngine.setCover(readable)
         if (readable !== cover) readable.recycle()
     }
     LaunchedEffect(flowEngine, flowOn) {
         if (!flowOn || flowEngine == null) return@LaunchedEffect
         while (true) {
-            delay(33L)
+            delay(67L)
             flowFrame++
         }
     }
@@ -215,7 +198,9 @@ fun LockPreview(
             )
             if (flowOn && flowFrame >= 0 && flowEngine?.isReady() == true) {
                 try {
-                    flowEngine.draw(drawContext.canvas.nativeCanvas, size.width, size.height)
+                    flowEngine.drawPreview(drawContext.canvas.nativeCanvas,
+                        screenW.toFloat(), screenH.toFloat(), resources.displayMetrics.density,
+                        size.width, size.height)
                 } catch (_: Throwable) {
                     // Wallpaper remains as the preview fallback too.
                 }

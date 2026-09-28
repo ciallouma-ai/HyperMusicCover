@@ -354,55 +354,6 @@ private fun CoverGroup(
                     ModuleBridge.setCoverFlowConfig(context, json)
                 },
             )
-            if (flow.enabled) {
-                WindowDropdownPreference(
-                    title = stringResource(R.string.cover_flow_preset),
-                    items = listOf(
-                        stringResource(R.string.cover_flow_apple),
-                        stringResource(R.string.cover_flow_soft),
-                        stringResource(R.string.cover_flow_vivid),
-                    ),
-                    selectedIndex = flow.preset,
-                    enabled = enabled,
-                    onSelectedIndexChange = {
-                        val json = CoverFlowConfig.selectPreset(flow, it).json()
-                        onChange(module.copy(flowConfig = json))
-                        ModuleBridge.setCoverFlowConfig(context, json)
-                    },
-                )
-                ValueSlider(
-                    title = stringResource(R.string.cover_flow_strength),
-                    value = flow.warp, valueRange = 0f..1f, enabled = enabled,
-                    label = { "${(it * 100).roundToInt()}%" },
-                    onValueChange = {
-                        val json = flow.copy(warp = it).json()
-                        onChange(module.copy(flowConfig = json))
-                        ModuleBridge.setCoverFlowConfig(context, json)
-                    },
-                )
-                ValueSlider(
-                    title = stringResource(R.string.cover_flow_speed),
-                    value = flow.speed, valueRange = 0.1f..3f, enabled = enabled,
-                    label = { "${(it * 10).roundToInt() / 10f}×" },
-                    onValueChange = {
-                        val value = (it * 10).roundToInt() / 10f
-                        val json = flow.copy(speed = value).json()
-                        onChange(module.copy(flowConfig = json))
-                        ModuleBridge.setCoverFlowConfig(context, json)
-                    },
-                )
-                ValueSlider(
-                    title = stringResource(R.string.cover_flow_blur),
-                    value = flow.blur.toFloat(), valueRange = 1f..40f, enabled = enabled,
-                    label = { it.roundToInt().toString() },
-                    onValueChange = {
-                        onChange(module.copy(flowConfig = flow.copy(blur = it.roundToInt()).json()))
-                    },
-                    onValueChangeFinished = {
-                        ModuleBridge.setCoverFlowConfig(context, module.flowConfig)
-                    },
-                )
-            }
             ValueSlider(
                 title = stringResource(R.string.cover_card_size),
                 value = module.coverCardFill.coerceIn(0.4f, 1f),
